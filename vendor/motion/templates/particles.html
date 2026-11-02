@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* Template: a field of drifting particles, deterministic because the random
+   values come from of-motion's seeded `hash(i)`, not Math.random. Same t, same
+   field — the film's determinism check passes without the host's seeded
+   Math.random being involved.
+   The dots are placed from hash values; their drift is t. */
+html, body { margin: 0; background: #0d0d12; overflow: hidden; }
+.dot {
+  position: absolute; border-radius: 50%;
+  background: #e8d9b8;
+}
+</style>
+</head>
+<body>
+<script type="module">
+import { hash, lerp, spring } from './of-motion.mjs';
+
+const COUNT = 90;
+const dots = [];
+for (let i = 0; i < COUNT; i++) {
+  const el = document.createElement('div');
+  el.className = 'dot';
+  const size = lerp(3, 9, hash(i * 7 + 1));
+  el.style.width = el.style.height = size.toFixed(1) + 'px';
+  el.style.opacity = lerp(0.25, 0.85, hash(i * 7 + 2)).toFixed(2);
+  document.body.appendChild(el);
+  dots.push({
+    el,
+    x0: hash(i * 7 + 3) * 1920,
+    y0: hash(i * 7 + 4) * 1080,
+    drift: lerp(20, 70, hash(i * 7 + 5)),   // px of drift over the whole shot
+    sway: lerp(8, 30, hash(i * 7 + 6)),     // sideways sway amplitude
+    period: lerp(4, 9, hash(i * 7 + 7)),    // sway seconds
+  });
+}
+
+window.film = {
+  duration: 4,
+  frame(t) {
+    // Each dot drifts up at its own rate and sways on its own period; the ones
+    // that arrive do so with a spring (a hand's nudge), not a linear ramp.
+    for (const d of dots) {
+      const x = d.x0 + Math.sin((t / d.period) * Math.PI * 2) * d.sway;
+      const y = d.y0 - (t / 4) * d.drift;
+      d.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+      // Opacity: present at once, but the last 0.6s lifts out with a spring's
+      // tail instead of a straight fade.
+      const out = spring(3.4 - t, { stiffness: 120, damping: 14, from: 0, to: 1 });
+      d.el.style.opacity = String(Math.max(0, Math.min(1, out)).toFixed(3));
+    }
+  },
+};
+</script>
+</body>
+</html>

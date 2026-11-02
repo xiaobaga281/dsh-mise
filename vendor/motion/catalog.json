@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "source": "FredTalk 2.1 (MIT) — the selection-gate idea, adapted to OpenFilm pages",
+  "note": "Each entry is a motion pattern a shot page can draw with of-motion.mjs + CSS. Search before inventing: a shot should name the pattern it uses and why.",
+  "patterns": [
+    {
+      "id": "TEXT-STAGGER",
+      "name": "逐行上浮的文字强调",
+      "use": ["explain", "text", "title", "要点", "强调"],
+      "when": "一句话里有 2–4 个要点，观众要按顺序读；适合开场论点、结论、口号。",
+      "snippet": "const lines = [...document.querySelectorAll('.line')];\nlines.forEach((el, i) => { const k = clamp01((t - 0.25 - i * 0.18) / 0.5); el.style.opacity = k; el.style.transform = `translateY(${(1 - easeOut(k)) * 28}px)`; });",
+      "avoid": "超过 5 行会变成念稿；要点之间不要用同一个延迟。"
+    },
+    {
+      "id": "NUMBER-COUNT",
+      "name": "数字滚动",
+      "use": ["data", "number", "stats", "价格", "增长"],
+      "when": "一个数字本身就是信息（增长、价格、时长、规模），让数字停在终值上。",
+      "snippet": "const k = easeOut(clamp01((t - 0.3) / 1.1));\nconst v = Math.round(lerp(0, 1280000, k));\nel.textContent = v.toLocaleString('zh-CN');",
+      "avoid": "小数不要滚；没有单位的数字要补单位。"
+    },
+    {
+      "id": "STEPS-LIST",
+      "name": "三个要点／步骤依次出现",
+      "use": ["explain", "steps", "flow", "步骤", "流程", "三个要点列表"],
+      "when": "讲做法、流程、清单：一行一个要点，上一行落定再出下一行。",
+      "snippet": "const rows = [...document.querySelectorAll('.row')];\nrows.forEach((el, i) => { const k = clamp01((t - 0.3 - i * 0.45) / 0.4); el.style.opacity = k; el.style.transform = `translateX(${(1 - easeOut(k)) * -24}px)`; });",
+      "avoid": "每步字数不等时要给同一高度容器，否则整页会跳。"
+    },
+    {
+      "id": "COMPARE-SPLIT",
+      "name": "左右对比（旧/新、A/B、价格）",
+      "use": ["compare", "contrast", "对比", "价格", "两个工具价格对比"],
+      "when": "两件事物逐项比较，或同一指标两种选择。中缝先出，两侧再推入。",
+      "snippet": "const k = easeInOut(clamp01(t / 0.8));\nleft.style.transform = `translateX(${(1 - k) * -60}px)`; left.style.opacity = k;\nright.style.transform = `translateX(${(1 - k) * 60}px)`; right.style.opacity = k;\nrule.style.transform = `scaleY(${k})`;",
+      "avoid": "两侧信息量要对称；别把第三项塞进任意一侧。"
+    },
+    {
+      "id": "WIPE-REVEAL",
+      "name": "擦除式揭示（图片/截图）",
+      "use": ["image", "reveal", "作品展示", "截图", "揭示"],
+      "when": "一张图或录屏要“被揭开”，而不是淡入：用 clip-path 从左到右扫过。",
+      "snippet": "const k = easeInOut(clamp01((t - 0.2) / 1.2));\nimg.style.clipPath = `inset(0 ${(1 - k) * 100}% 0 0)`;",
+      "avoid": "擦除方向要和阅读方向一致；竖屏从上往下。"
+    },
+    {
+      "id": "TERMINAL-TYPE",
+      "name": "终端打字",
+      "use": ["code", "terminal", "技术", "命令", "演示"],
+      "when": "展示命令、日志、代码；逐字出现并带光标，能让人相信过程是真的。",
+      "snippet": "const full = 'npm run build';\nconst n = Math.floor(clamp01((t - 0.3) / 1.4) * full.length);\ntext.textContent = full.slice(0, n); caret.style.opacity = (Math.floor(t * 2) % 2) ? 0 : 1;",
+      "avoid": "光标闪烁必须由 t 决定，不能用 CSS 动画。"
+    },
+    {
+      "id": "CHART-DRAW",
+      "name": "图表生长（柱/折线）",
+      "use": ["data", "chart", "图表", "增长", "数据"],
+      "when": "趋势比数字重要时：柱子从 0 长到真实比例，折线按路径长度推进。",
+      "snippet": "bars.forEach((el, i) => { const k = easeOut(clamp01((t - 0.2 - i * 0.08) / 0.9)); el.style.transform = `scaleY(${k})`; });\ncurve.style.strokeDashoffset = String(len * (1 - easeInOut(clamp01((t - 0.2) / 1.5))));",
+      "avoid": "纵轴必须从 0 开始，否则比例在撒谎。"
+    },
+    {
+      "id": "CHAPTER-MARK",
+      "name": "章节序号 + 标题揭示",
+      "use": ["chapter", "transition", "章节", "过渡", "段首"],
+      "when": "长视频分段：序号先落，标题再擦出，最后整块淡出接下一段内容。",
+      "snippet": "const a = easeOut(clamp01((t - 0.1) / 0.5));\nconst b = easeInOut(clamp01((t - 0.35) / 0.7));\nnum.style.opacity = a; num.style.transform = `translateY(${(1 - a) * 20}px)`;\nname.style.clipPath = `inset(0 ${(1 - b) * 100}% 0 0)`;",
+      "avoid": "章节点缀音效整期只用一次，不要每段都响。"
+    },
+    {
+      "id": "QUOTE-CARD",
+      "name": "引语卡（署名压角）",
+      "use": ["quote", "testimonial", "引语", "评价", "证言"],
+      "when": "引述用户、专家或评论：引号先出，正文逐行，署名最后落到右下。",
+      "snippet": "const a = clamp01((t - 0.2) / 0.6);\nquote.style.opacity = a; quote.style.transform = `translateY(${(1 - easeOut(a)) * 18}px)`;\nconst b = clamp01((t - 1.1) / 0.5); byline.style.opacity = b;",
+      "avoid": "引语别超过三行；署名不能小到看不清。"
+    },
+    {
+      "id": "DEVICE-FRAME",
+      "name": "设备框 + 屏幕内容",
+      "use": ["device", "app", "product", "手机", "演示", "录屏"],
+      "when": "展示 App/网页/产品界面：外框固定，屏幕内容做轻微推近，避免整页晃动。",
+      "snippet": "const k = easeInOut(clamp01(t / 2.2));\nframe.style.transform = `translateY(${(1 - easeOut(clamp01(t / 0.9))) * 26}px)`;\nscreen.style.transform = `scale(${1.02 + 0.05 * k})`;\nscreen.style.objectPosition = `${10 + 30 * k}% 50%`;",
+      "avoid": "外框和内屏不要同时大幅度移动，会晕。"
+    },
+    {
+      "id": "BROLL-KENBURNS",
+      "name": "静图运镜（推近/横移）",
+      "use": ["broll", "photo", "still", "素材", "空镜", "氛围"],
+      "when": "用生成图或照片做 B-roll：让画面缓慢推近或横移，避免“贴图感”。",
+      "snippet": "const k = easeInOut(clamp01(t / D));\nplate.style.transform = `scale(${1.06 + 0.09 * k}) translate(${12 * k}px, ${4 * k}px)`;",
+      "avoid": "幅度超过 1.18 会看出像素；1K 图放大要更保守。"
+    },
+    {
+      "id": "TRANSITION-MATCH",
+      "name": "同位置交接（match cut）",
+      "use": ["transition", "handoff", "交接", "连贯", "过渡"],
+      "when": "两个镜头讲同一件事：让上一镜的物体从同一位置离场、下一镜从同一位置进场。",
+      "snippet": "const k = easeOut(clamp01(t / 0.45));\nel.style.transform = `translate(${30 * (1 - k)}px, ${-18 * (1 - k)}px) scale(${0.86 + 0.14 * k})`;",
+      "avoid": "两镜的物体形状不一致时不要硬接，会像跳帧。"
+    }
+  ]
+}

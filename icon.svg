@@ -1,0 +1,14 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4.5" y="7.5" width="27" height="21" rx="6" stroke="url(#dsh_plugin_art_openfilm)" stroke-width="3" />
+  <path d="M15.6 13.8L22.6 18L15.6 22.2V13.8Z" fill="url(#dsh_plugin_art_openfilm_play)" />
+  <defs>
+    <linearGradient id="dsh_plugin_art_openfilm" x1="6" y1="8" x2="30" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AC2FF" />
+      <stop offset="1" stop-color="#4A65E8" />
+    </linearGradient>
+    <linearGradient id="dsh_plugin_art_openfilm_play" x1="15.6" y1="13.8" x2="22.6" y2="22.2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A797FC" />
+      <stop offset="1" stop-color="#658EFF" />
+    </linearGradient>
+  </defs>
+</svg>

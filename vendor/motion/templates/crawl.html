@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* Template: a caption band that rolls upward, like a credits crawl or an
+   announcement ticker. The scroll is CSS animation (the host freezes it at t),
+   and the words are typed by of-motion's typewriter — the two together.
+   Copy it, change the LINES array and the crawl duration. */
+html, body { margin: 0; background: #f5efe2; overflow: hidden; }
+.band {
+  position: absolute; left: 0; right: 0; top: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 34px;
+  padding-top: 120px;
+  animation: crawl 3.2s linear forwards;
+}
+.line {
+  font: 500 44px/1.5 "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  color: #3a3226;
+  text-align: center;
+}
+.line.small { font-size: 30px; color: #7a6f5c; }
+@keyframes crawl { to { transform: translateY(-100%); } }
+</style>
+</head>
+<body>
+<div class="band" id="band"></div>
+<script type="module">
+import { typewriter, typing } from './of-motion.mjs';
+
+// Each line: text, and whether it is typed in (the others just ride the crawl).
+const LINES = [
+  { text: '第一个要点，一句话说完。', typed: true },
+  { text: '第二个要点，比第一个更有力。', typed: true },
+  { text: '落款 · 出品 · 二〇二六', typed: false, small: true },
+];
+
+const band = document.getElementById('band');
+const els = LINES.map((l) => {
+  const el = document.createElement('div');
+  el.className = 'line' + (l.small ? ' small' : '');
+  band.appendChild(el);
+  return { l, el };
+});
+
+window.film = {
+  duration: 3.2,
+  frame(t) {
+    for (const { l, el } of els) {
+      // Typed lines appear from 0.4s, one character every 0.05s; the crawl
+      // carries them up regardless.
+      el.textContent = l.typed ? typewriter(l.text, t, 0.4, 0.05) : l.text;
+      el.style.opacity = l.typed ? '1' : '0.75';
+    }
+  },
+};
+</script>
+</body>
+</html>

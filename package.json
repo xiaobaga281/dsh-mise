@@ -1,0 +1,101 @@
+{
+  "name": "dsh-mise",
+  "version": "2.1.0",
+  "type": "module",
+  "description": "Mise: a film is a mise-en-scene. Films are HTML pages; this plugin composes, scores, checks, looks at and renders them with its own renderer and its own Apple-style sidebar panel.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "LICENSE",
+    "NOTICE.md",
+    "README.md",
+    "agnes-assets.mjs",
+    "asset-queue.mjs",
+    "client.js",
+    "cordis.patch.yml",
+    "film-audio.mjs",
+    "film-check.mjs",
+    "film-cine.mjs",
+    "film-claims.mjs",
+    "film-compose.mjs",
+    "film-craft.mjs",
+    "film-cutout.mjs",
+    "film-deliver.mjs",
+    "film-depth.mjs",
+    "film-doctor.mjs",
+    "film-duo.mjs",
+    "film-fonts.mjs",
+    "film-genres.mjs",
+    "film-grade.mjs",
+    "film-graphics.mjs",
+    "film-grid.mjs",
+    "film-interpolate.mjs",
+    "film-keyframes.mjs",
+    "film-mix.mjs",
+    "film-motion-catalog.mjs",
+    "film-motionlib.mjs",
+    "film-new.mjs",
+    "film-packs.mjs",
+    "film-preflight.mjs",
+    "film-review.mjs",
+    "film-scene.mjs",
+    "film-score.mjs",
+    "film-storyboard.mjs",
+    "film-structure.mjs",
+    "film-timeline.mjs",
+    "film-transition.mjs",
+    "film-type.mjs",
+    "film-verify.mjs",
+    "icon.svg",
+    "index.js",
+    "locale/*.json",
+    "media-service.mjs",
+    "mise-film-doc.mjs",
+    "mise-look.mjs",
+    "mise-render.mjs",
+    "mise-storyboard-add.mjs",
+    "mise-tools.mjs",
+    "skills/**",
+    "tests/*.test.mjs",
+    "vendor/motion/**",
+    "vendor/node_modules/**",
+    "vendor/rive/**",
+    "voice-assets.mjs"
+  ],
+  "scripts": {
+    "test": "node tests/compose.test.mjs",
+    "test:all": "node scripts/run-tests.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "displayName": "Mise",
+  "license": "MIT",
+  "homepage": "https://github.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "film",
+    "video",
+    "ffmpeg",
+    "playwright",
+    "motion-graphics"
+  ],
+  "author": "Mise contributors"
+}

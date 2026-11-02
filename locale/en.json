@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "title": "Mise",
+    "description": "Mise video-agent tools for the harness: mise_manual and mise_run drive film projects (open / look / render / skills), compose from measured screenshots, and score, check, render and deliver the film inside the plugin — no external studio.",
+    "tool.mise_manual": "Read the Mise film manual",
+    "tool.mise_run": "Run a Mise command (open, look, render, skills)",
+    "command.video": "Make a film with Mise (new / check / render)"
+  }
+}

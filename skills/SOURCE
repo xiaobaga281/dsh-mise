@@ -1,0 +1,8 @@
+Upstream: https://github.com/openfilm/skills (MIT).
+The eleven style documents and MANUAL.md started from that set and were localised for Mise:
+  - the title and prose say Mise, not the upstream product name;
+  - command examples name the tools this plugin actually has (mise_run ["open|look|render|skills"], mise_asset, mise_voice);
+  - rendering, contact sheets and thumbnails are described as Mise modules (mise_render, mise_look, mise_thumbs);
+  - the film format itself is unchanged: tracks, clips, `at`, `#t=in,out`, window.film.frame(t).
+
+Keep the format compatible with that upstream, and keep the attribution: the craft guidance is theirs, the implementation here is ours.

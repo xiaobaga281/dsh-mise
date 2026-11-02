@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* Template: a bar chart that draws itself. The bars grow with of-motion's
+   easeOut; the numbers count with `counter`, which stays whole while climbing.
+   Everything is a pure function of t. Change the data array and the labels. */
+html, body { margin: 0; background: #101318; overflow: hidden; }
+.stage { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 72px; padding-bottom: 120px; }
+.bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.bar { width: 120px; background: linear-gradient(180deg, #6ea8fe, #3b6fd4); border-radius: 8px 8px 0 0; }
+.value { font: 600 34px "Source Han Sans SC", "Microsoft YaHei", sans-serif; color: #dfe7f2; }
+.label { font: 400 26px "Source Han Sans SC", "Microsoft YaHei", sans-serif; color: #8fa0b8; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script type="module">
+import { easeOut, clamp01, counter } from './of-motion.mjs';
+
+const DATA = [
+  { label: '一月', value: 42 },
+  { label: '二月', value: 68 },
+  { label: '三月', value: 55 },
+  { label: '四月', value: 91 },
+];
+const MAX = 520;             // tallest bar, px
+const GROW_START = 0.3;      // the bars begin growing at this t
+const GROW_DUR = 1.4;
+
+const stage = document.getElementById('stage');
+const bars = DATA.map((d) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'bar-wrap';
+  const value = document.createElement('div');
+  value.className = 'value';
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = d.label;
+  wrap.append(value, bar, label);
+  stage.appendChild(wrap);
+  return { d, value, bar, height: (d.value / Math.max(...DATA.map((x) => x.value))) * MAX };
+});
+
+window.film = {
+  duration: 3.2,
+  // A page that is only a part of the picture says its own size, and the
+  // clip's style in film.html puts it in place. Without these the page is laid
+  // out for the whole stage (1920x1080), which would make a corner chart huge.
+  width: 1280,
+  height: 720,
+  frame(t) {
+    const k = easeOut(clamp01((t - GROW_START) / GROW_DUR));
+    for (const b of bars) {
+      b.bar.style.height = (b.height * k).toFixed(1) + 'px';
+      b.value.textContent = String(counter(b.d.value, t, GROW_START, GROW_DUR));
+    }
+  },
+};
+</script>
+</body>
+</html>

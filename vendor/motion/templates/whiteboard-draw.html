@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* Template: a whiteboard that draws itself. The lines are drawn as SVG paths
+   whose length is revealed by stroke-dasharray — the hand-drawn wobble is
+   generated, not drawn by hand: each path is sampled from a straight line with
+   a small seeded offset, so the same t always draws the same line.
+
+   No dependency: a hand-drawn library (rough.js, 166 KB) is not worth shipping
+   for lines this simple. Change the STEPS array and the timings. */
+html, body { margin: 0; background: #f7f4ec; overflow: hidden; }
+svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hand { fill: none; stroke: #2b2b2b; stroke-linecap: round; stroke-linejoin: round; }
+.ink { fill: none; stroke: #c76b3f; stroke-linecap: round; stroke-linejoin: round; }
+.title { font: 600 84px/1.2 "Source Han Sans SC", "Microsoft YaHei", sans-serif; fill: #2b2b2b; }
+</style>
+</head>
+<body>
+<svg id="board" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet"></svg>
+<script type="module">
+import { hash, easeInOut, clamp01, typewriter } from './of-motion.mjs';
+
+// The drawing, in order: each step is a path (list of points), a stroke width,
+// and when it starts and how long it takes.
+const STEPS = [
+  { kind: 'title', text: '狼来了', x: 160, y: 220, at: 0.0, dur: 0.9 },
+  { kind: 'path', pts: [[160, 380], [1760, 380]], w: 10, at: 0.6, dur: 1.1 },
+  { kind: 'path', pts: [[320, 700], [420, 520], [520, 700]], w: 9, at: 1.2, dur: 0.9 },
+  { kind: 'path', pts: [[620, 700], [720, 520], [820, 700]], w: 9, at: 1.5, dur: 0.9 },
+  { kind: 'path', pts: [[920, 700], [1020, 520], [1120, 700]], w: 9, at: 1.8, dur: 0.9 },
+  { kind: 'path', pts: [[1220, 700], [1320, 520], [1420, 700]], w: 9, at: 2.1, dur: 0.9 },
+  { kind: 'path', pts: [[160, 860], [1760, 860]], w: 6, ink: true, at: 2.6, dur: 0.8 },
+];
+
+const NS = 'http://www.w3.org/2000/svg';
+const board = document.getElementById('board');
+const nodes = STEPS.map((step) => {
+  let el;
+  if (step.kind === 'title') {
+    el = document.createElementNS(NS, 'text');
+    el.setAttribute('x', step.x);
+    el.setAttribute('y', step.y);
+    el.setAttribute('class', 'title');
+  } else {
+    // A hand-drawn line: the straight line resampled with a seeded wobble.
+    const [a, b] = step.pts;
+    const segs = 14;
+    let d = '';
+    for (let i = 0; i <= segs; i++) {
+      const k = i / segs;
+      const jitter = i === 0 || i === segs ? 0 : 1;
+      const nx = a[0] + (b[0] - a[0]) * k + (hash(i * 31 + step.at * 1000) - 0.5) * 7 * jitter;
+      const ny = a[1] + (b[1] - a[1]) * k + (hash(i * 57 + step.at * 1000) - 0.5) * 7 * jitter;
+      d += (i === 0 ? 'M' : 'L') + nx.toFixed(1) + ' ' + ny.toFixed(1) + ' ';
+    }
+    el = document.createElementNS(NS, 'path');
+    el.setAttribute('d', d.trim());
+    el.setAttribute('stroke-width', step.w);
+    el.setAttribute('class', step.ink ? 'ink' : 'hand');
+    // stroke-dasharray needs the path's length; set it after the element is in
+    // the document (getTotalLength requires layout).
+    board.appendChild(el);
+    const len = el.getTotalLength();
+    el.style.strokeDasharray = String(len);
+    el.style.strokeDashoffset = String(len);
+  }
+  board.appendChild(el);
+  return { step, el };
+});
+
+window.film = {
+  duration: 4,
+  frame(t) {
+    for (const { step, el } of nodes) {
+      const k = clamp01((t - step.at) / step.dur);
+      const e = easeInOut(k);
+      if (step.kind === 'title') {
+        // Typed, not written: the title appears a character at a time.
+        el.textContent = typewriter(step.text, t, step.at, 0.18);
+        el.style.opacity = k > 0 ? '1' : '0';
+      } else {
+        el.style.strokeDashoffset = String(el.style.strokeDasharray ? Number(el.style.strokeDasharray) * (1 - e) : 0);
+      }
+    }
+  },
+};
+</script>
+</body>
+</html>

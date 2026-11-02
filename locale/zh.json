@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "title": "Mise 视频代理",
+    "description": "Mise 视频代理工具：mise_manual 与 mise_run 驱动影片工程（open / look / render / skills），先量素材再定构图，配乐、校验、渲染、交付全部由插件自己完成，不依赖外部 Studio；侧边栏面板显示当前影片状态。",
+    "tool.mise_manual": "阅读 Mise 拍片手册",
+    "tool.mise_run": "运行 Mise 命令（open、look、render、skills）",
+    "command.video": "用 Mise 制作影片（新建 / 检查 / 渲染）"
+  }
+}

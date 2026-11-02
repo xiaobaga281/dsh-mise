@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* A Rive animation as a shot.
+
+   Copy this page per .riv (one shot, one page) and change the two constants at
+   the top of the script: SRC and ANIM. The clip in film.html then names only
+   the page and its seconds:
+
+     <iframe src="rive-birb.html#t=0,4" at="0"></iframe>
+
+   The .riv is never played by a clock: each frame resets the runtime, scrubs to
+   t and draws that one frame, so the picture depends only on t — the film's one
+   rule, and what makes a render reproducible.
+
+   The runtime (vendor-rive/) and the file both load before drawing
+   (window.film.ready), so the first frame is never blank. */
+html, body { margin: 0; background: transparent; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.note { position: absolute; left: 10px; bottom: 10px; font: 12px ui-monospace, monospace; color: #d66; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div class="note" id="note" hidden></div>
+<script type="module">
+/* ── the two things to change ──────────────────────────────────────────── */
+/** The Rive file, relative to this page. */
+const SRC = 'assets/animation.riv';
+/** The animation to play; '' picks the file's first one. */
+const ANIM = '';
+
+const canvas = document.getElementById('stage');
+const note = document.getElementById('note');
+const complain = (m) => { note.hidden = false; note.textContent = m; };
+
+let rive = null;     // the runtime's global (the UMD build installs window.rive)
+let instance = null; // the Rive instance driving this shot
+let animation = '';  // the animation's name, once the file is read
+let ready = null;
+
+/** Load the runtime and the file, once. */
+function load() {
+  if (ready) return ready;
+  ready = (async () => {
+    // The vendored runtime, copied into the project by `open`.
+    await new Promise((ok, no) => {
+      const s = document.createElement('script');
+      s.src = './vendor-rive/rive.js';
+      s.onload = ok;
+      s.onerror = () => no(new Error('vendor-rive/rive.js is missing: run `open` in this project'));
+      document.head.appendChild(s);
+    });
+    rive = window.rive;
+    if (!rive?.Rive) throw new Error('the Rive runtime did not install itself');
+
+    // Keep the console readable: the runtime warns about the two calls this page
+    // must use (a manual animation, not a state machine).
+    try { rive.Rive.suppressDeprecationWarnings = ['animations-param', 'scrub']; } catch {}
+
+    const response = await fetch(SRC, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`${SRC} not found (${response.status})`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    // autoplay off: nothing moves unless frame(t) says so.
+    instance = new rive.Rive({
+      canvas, buffer: bytes, autoplay: false,
+      ...(ANIM ? { animations: ANIM } : {}),
+    });
+    await new Promise((ok, no) => {
+      const timer = setTimeout(() => no(new Error('the .riv did not finish loading')), 20000);
+      instance.on('load', () => { clearTimeout(timer); ok(); });
+    });
+    animation = ANIM || firstAnimationName();
+    if (!animation) throw new Error('the .riv has no animation to play');
+  })();
+  return ready;
+}
+
+/** The artboard's first animation's name, read from the runtime's own listing. */
+function firstAnimationName() {
+  const artboard = instance?.artboard;
+  const names = artboard?.animations?.map?.((a) => a.name) ?? [];
+  return names[0] ?? '';
+}
+
+window.film = {
+  // The length and the placement are the clip's business in film.html.
+  ready: load().catch((error) => {
+    complain(String(error?.message ?? error));
+    throw error;
+  }),
+  frame(t) {
+    if (!instance || !animation) return;
+    // Reset, then scrub, then draw. The reset is what makes the picture a pure
+    // function of t: drawFrame advances the artboard by the real time since the
+    // last draw, so without it the answer would depend on the order frames came.
+    instance.reset({ animations: animation, autoplay: false });
+    instance.scrub(animation, Math.max(0, t));
+    instance.drawFrame();
+  },
+};
+</script>
+</body>
+</html>

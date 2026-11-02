@@ -1,0 +1,19 @@
+# Dependencies are vendored on purpose; this is not an npm workspace.
+node_modules/
+.venv/
+
+# Build artifacts of a film project, never part of the plugin
+.film/
+deliveries/
+*.mp4
+*.wav
+*.mov
+
+# Local caches and logs
+.panel-preview.html
+*.log
+.DS_Store
+Thumbs.db
+
+# Test scratch space
+tmp/

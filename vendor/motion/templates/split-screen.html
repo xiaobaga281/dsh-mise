@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+/* Template: two pages side by side on one shot — the film.width/height contract.
+   This page declares itself 960x1080 (half the stage), and its clip in film.html
+   places it: <iframe src="split-left.html#t=0,4" at="0" style="left:0;top:0;width:960px;height:1080px">.
+   Copy it twice (left/right, or top/bottom) for a comparison, a before/after,
+   or a conversation between two pages. Both halves stay deterministic because
+   each is a pure function of its own t.
+   Change the copy, the color pair, and the timings. */
+html, body { margin: 0; width: 960px; height: 1080px; background: #131a24; overflow: hidden; }
+.pane { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.mark {
+  width: 180px; height: 180px; border-radius: 24px;
+  background: linear-gradient(150deg, #6ea8fe, #3b6fd4);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.caption { font: 500 40px/1.4 "Source Han Sans SC", "Microsoft YaHei", sans-serif; color: #dfe7f2; text-align: center; }
+.sub { font: 400 26px/1.4 "Source Han Sans SC", "Microsoft YaHei", sans-serif; color: #8fa0b8; }
+</style>
+</head>
+<body>
+<div class="pane">
+  <div class="mark" id="mark"></div>
+  <div class="caption" id="caption">这一半的标题</div>
+  <div class="sub">副标题或一句说明</div>
+</div>
+<script type="module">
+import { spring, apply } from './of-motion.mjs';
+
+const mark = document.getElementById('mark');
+const caption = document.getElementById('caption');
+
+window.film = {
+  duration: 4,
+  // Half the stage: the page's own size. film.html's clip puts it in place.
+  width: 960,
+  height: 1080,
+  frame(t) {
+    // The mark lands with a spring's settle; the caption rises a beat later.
+    const k = spring(t, { stiffness: 120, damping: 11 });
+    apply(mark, { transform: `scale(${(0.5 + 0.5 * k).toFixed(3)})`, opacity: String(Math.max(0, Math.min(1, k * 1.4)).toFixed(3)) });
+    const c = spring(t - 0.35, { stiffness: 120, damping: 13 });
+    apply(caption, { transform: `translateY(${((1 - Math.max(0, Math.min(1, c))) * 22).toFixed(1)}px)`, opacity: String(Math.max(0, Math.min(1, c)).toFixed(3)) });
+  },
+};
+</script>
+</body>
+</html>
