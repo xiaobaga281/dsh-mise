@@ -1,5 +1,6 @@
-# Dependencies are vendored on purpose; this is not an npm workspace.
-node_modules/
+# Dependencies are vendored on purpose (vendor/node_modules ships with the
+# plugin); only a package manager's own folder at the root is ignored.
+/node_modules/
 .venv/
 
 # Build artifacts of a film project, never part of the plugin
@@ -11,6 +12,8 @@ deliveries/
 
 # Local caches and logs
 .panel-preview.html
+.npm-cache/
+*.tgz
 *.log
 .DS_Store
 Thumbs.db
