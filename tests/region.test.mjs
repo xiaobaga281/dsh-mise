@@ -55,7 +55,7 @@ async function mount(agentRegistry) {
 }
 
 function film() {
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-region-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-region-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section><iframe src="s1.html#t=0,5"></iframe></section>');
   writeFileSync(join(dir, 's1.html'), '<script>window.film={duration:5,frame(t){}}</script>');
   return dir;

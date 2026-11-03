@@ -9,7 +9,7 @@
  *
  * Pure over a gray buffer, so it is testable without a browser or a PNG decoder.
  *
- * @module openfilm-film-verify
+ * @module mise-film-verify
  */
 
 /**

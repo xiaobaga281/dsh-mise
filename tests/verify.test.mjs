@@ -106,7 +106,7 @@ test('the gate action opens only after a fresh acceptance record', async () => {
     get: () => undefined,
   });
   const tool = tools.find((t) => t.name === 'mise_verify');
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-gate-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-gate-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   mkdirSync(join(dir, '.film'), { recursive: true });
   writeFileSync(join(dir, '.film', 'plan.json'), JSON.stringify({ genre: 'keynote', beats: [] }));

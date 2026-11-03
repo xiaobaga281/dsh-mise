@@ -1,7 +1,7 @@
 /**
  * Voice for a film: text in, a spoken audio file out.
  *
- * The one thing a film cannot draw is a voice. Everything else in OpenFilm is
+ * The one thing a film cannot draw is a voice. Everything else here is
  * code — pages draw the picture, CSS holds it still — but dialogue needs a
  * speech engine, and the harness's own transcription only runs the other way
  * (audio → text) and is not even loaded in this profile.
@@ -12,7 +12,7 @@
  * dependency, so installing the plugin installs the voice engine too — a person
  * never has to register, configure, or download anything.
  *
- * @module openfilm-voice
+ * @module mise-voice
  */
 
 import { randomBytes } from 'node:crypto';

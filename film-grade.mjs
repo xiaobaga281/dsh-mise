@@ -6,7 +6,7 @@
  * no cut changes the world. ffmpeg does it in one pass — portable, deterministic
  * and fast — and the tool says which filters this build actually has.
  *
- * @module openfilm-film-grade
+ * @module mise-film-grade
  */
 
 /**

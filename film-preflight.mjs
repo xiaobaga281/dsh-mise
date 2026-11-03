@@ -13,7 +13,7 @@
  * module joins them into one verdict with explicit blockers, so a render step
  * can refuse for a reason a person can act on.
  *
- * @module openfilm-film-preflight
+ * @module mise-film-preflight
  */
 
 /**

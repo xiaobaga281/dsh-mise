@@ -49,7 +49,7 @@ function recorder() {
 
 /** One film project with a real PNG in its look cache. */
 function film(name) {
-  const dir = mkdtempSync(join(tmpdir(), `openfilm-${name}-`));
+  const dir = mkdtempSync(join(tmpdir(), `mise-${name}-`));
   mkdirSync(join(dir, '.film', 'cache', 'look'), { recursive: true });
   writeFileSync(join(dir, 'film.html'), '<section></section>');
   // A minimal 1x1 PNG, so the route serves real bytes.

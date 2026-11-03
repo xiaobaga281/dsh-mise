@@ -144,7 +144,7 @@ test('the plan tool writes .film/plan.json into a project', async () => {
   const tool = tools.find((t) => t.name === 'mise_plan');
   assert.ok(tool, 'mise_plan must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-plan-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-plan-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   const made = await tool.execute({ cwd: dir, genre: 'keynote', seconds: 18 });
   assert.equal(made.ok, true);

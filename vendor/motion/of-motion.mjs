@@ -1,5 +1,5 @@
 /**
- * of-motion — the motion kit for OpenFilm shot pages.
+ * of-motion — the motion kit for Mise shot pages.
  *
  * @of-motion v3
  *

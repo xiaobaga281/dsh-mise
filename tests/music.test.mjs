@@ -81,7 +81,7 @@ test('the score tool writes a playable WAV and the mix tool refuses missing musi
   assert.ok(score, 'mise_score must be registered');
   assert.ok(mix, 'mise_mix must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-score-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-score-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
 
   const made = await score.execute({ cwd: dir, name: 'bed', mood: 'warm', bars: 2, bpm: 100 });
@@ -216,7 +216,7 @@ test('align=cuts reads the film and lands chords on its shots', async () => {
     get: () => undefined,
   });
   const scoreTool = tools.find((t) => t.name === 'mise_score');
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-cutscore-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-cutscore-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section><iframe src="a.html#t=0,3"></iframe><iframe src="b.html#t=0,2" at="3"></iframe></section>');
   writeFileSync(join(dir, 'a.html'), '<script>window.film={duration:3,frame(){}}</script>');
   writeFileSync(join(dir, 'b.html'), '<script>window.film={duration:2,frame(){}}</script>');

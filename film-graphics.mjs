@@ -10,7 +10,7 @@
  * Both are a pure function of t and seeded positions, so the same frame is the
  * same picture on every machine.
  *
- * @module openfilm-film-graphics
+ * @module mise-film-graphics
  */
 
 import { TYPE_PALETTES } from './film-type.mjs';

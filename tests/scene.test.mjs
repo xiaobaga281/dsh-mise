@@ -50,7 +50,7 @@ test('the tool writes the scene page and refuses to clobber', async () => {
   const tool = tools.find((t) => t.name === 'mise_scene');
   assert.ok(tool, 'mise_scene must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-scene-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-scene-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'plate.png'), 'pretend');
 

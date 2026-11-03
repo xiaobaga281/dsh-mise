@@ -7,7 +7,7 @@
  * so a frame is the same on any machine, and the same motion can be reused by
  * every page instead of being re-typed per shot.
  *
- * @module openfilm-film-motionlib
+ * @module mise-film-motionlib
  */
 
 /** Damped spring step response: 0 → 1 with a settle curve. */

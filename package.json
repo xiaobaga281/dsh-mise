@@ -1,8 +1,8 @@
 {
   "name": "dsh-mise",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "type": "module",
-  "description": "Mise: a film is a mise-en-scene. Films are HTML pages; this plugin composes, scores, checks, looks at and renders them with its own renderer and its own Apple-style sidebar panel.",
+  "description": "Mise: a film is a mise-en-scene. Films are HTML pages; this plugin composes, scores, measures, checks, renders and delivers them with its own renderer, its own picture and loudness meters, and its own sidebar panel.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

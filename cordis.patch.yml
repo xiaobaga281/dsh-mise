@@ -1,6 +1,5 @@
-# @local/dsh-mise — one Host row: registers the Mise film tools and skills.
-# (openfilm_manual, openfilm_run) and the official OpenFilm skill set into
-# the shared tools/skills registries.
+# @local/dsh-mise — one Host row: registers the Mise film tools and the style
+# skills into the shared tools/skills registries.
 - insert:
     - id: mise
       name: '@local/dsh-mise'

@@ -47,7 +47,7 @@ test('the cine tool builds a depth page when depth is given', async () => {
     get: () => undefined,
   });
   const tool = tools.find((t) => t.name === 'mise_cine');
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-depth-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-depth-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'plate.png'), 'pretend');
   writeFileSync(join(dir, 'depth.png'), 'pretend');

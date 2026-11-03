@@ -67,7 +67,7 @@ test('the tools refuse with a reason instead of guessing', async () => {
   assert.ok(tools.find((t) => t.name === 'mise_interpolate'));
   assert.ok(tools.find((t) => t.name === 'mise_depth'));
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-enhance-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-enhance-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'plate.png'), 'pretend png');
 

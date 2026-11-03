@@ -77,7 +77,7 @@ test('the graphics tool reads the WAV and writes a pulse page', async () => {
     get: () => undefined,
   });
   const tool = tools.find((t) => t.name === 'mise_graphics');
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-pulse-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-pulse-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'bed.wav'), syntheticWav());
 

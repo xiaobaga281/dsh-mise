@@ -41,7 +41,7 @@ if (!demo || !verify) {
 
 const rows = [];
 for (const genre of Object.keys(GENRES)) {
-  const base = mkdtempSync(join(tmpdir(), `openfilm-smoke-${genre}-`));
+  const base = mkdtempSync(join(tmpdir(), `mise-smoke-${genre}-`));
   try {
     const built = await demo.execute({ cwd: base, name: 'smoke', genre, seconds: 12, render: false, finish: false });
     if (!built.ok) {

@@ -61,7 +61,7 @@ test('the tool writes the page and refuses to clobber', async () => {
   const tool = tools.find((t) => t.name === 'mise_keyframes');
   assert.ok(tool, 'mise_keyframes must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-kf-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-kf-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'p1.png'), 'a');
   writeFileSync(join(dir, 'p2.png'), 'b');

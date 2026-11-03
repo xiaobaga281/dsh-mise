@@ -12,7 +12,7 @@
  *   4. screenshot every frame and pipe it into ffmpeg;
  *   5. mix the film's audio tags and mux it with the picture.
  *
- * Nothing here talks to OpenFilm, and no long-lived web app is started.
+ * Nothing here talks to a hosted service, and no long-lived web app is started.
  *
  * @module mise-render
  */

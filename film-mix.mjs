@@ -9,7 +9,7 @@
  *
  * Pure plan, so it can be tested without ffmpeg.
  *
- * @module openfilm-film-mix
+ * @module mise-film-mix
  */
 
 export const LOUDNESS_TARGET = { I: -16, TP: -1.5, LRA: 11 };

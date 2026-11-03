@@ -19,7 +19,7 @@
  * The measured lengths come from `mise_voice` (its `seconds` is the real
  * length of the file it wrote); nothing here probes media.
  *
- * @module openfilm-timeline
+ * @module mise-timeline
  */
 
 /**

@@ -1,18 +1,17 @@
 /**
  * Reading a film before the expensive part runs.
  *
- * `openfilm look` and `openfilm render` are the only things that used to tell
- * the agent a film was wrong, and they cost a render each: a missing `#t=0,len`
- * on a still, a clip that overlaps its neighbour, or a src pointing at a file
- * that was never written all surface only after the browser has started. This
- * module answers the same questions in milliseconds by reading film.html with
- * the upstream parser.
+ * Rendering is the slowest way to learn a film is wrong, and the usual mistakes
+ * are all visible in the markup: a missing `#t=0,len` on a still, a clip that
+ * overlaps its neighbour, a src pointing at a file that was never written. Each
+ * of them used to surface only after the browser had started, minutes later.
+ * This module answers the same questions in milliseconds by reading film.html.
  *
  * The division of labour is deliberate:
  *
- *  - upstream `readFilmFile` owns the HTML: what a film may contain, attribute
- *    ranges, ids, fade fits. Its problems already carry `film.html:<line>`, so
- *    they are passed through untouched.
+ *  - `readFilmFile` owns the HTML: what a film may contain, attribute ranges,
+ *    ids, fade fits. Its problems already carry `film.html:<line>`, so they are
+ *    passed through untouched.
  *  - this module owns what only the filesystem knows: whether a src exists,
  *    whether two clips on a track overlap, how long the film is, and whether a
  *    page references an asset that is not there.
@@ -20,7 +19,7 @@
  * Nothing here writes. A check that cannot read a film reports that, rather
  * than reporting a film with no problems in it.
  *
- * @module openfilm-film-check
+ * @module mise-film-check
  */
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -337,8 +336,8 @@ export function checkFilm(projectPath) {
           kind,
           rule: kind === 'page' ? 'page-length' : 'length-in-file',
           message: kind === 'page'
-            ? `clip "${clip.id}" is a page with no #t=0,length: openfilm look checks that the page declares its own duration`
-            : `clip "${clip.id}" takes its length from ${clip.src}; openfilm look reads it`,
+            ? `clip "${clip.id}" is a page with no #t=0,length: mise_run look checks that the page declares its own duration`
+            : `clip "${clip.id}" takes its length from ${clip.src}; mise_run look reads it`,
         });
       }
       continue;

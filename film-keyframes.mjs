@@ -12,7 +12,7 @@
  * dissolve with a camera move, which is what a lot of premium explainers and
  * lyric pieces actually use between beats.
  *
- * @module openfilm-film-keyframes
+ * @module mise-film-keyframes
  */
 
 import { CINE_GRADES } from './film-cine.mjs';

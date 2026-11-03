@@ -13,7 +13,7 @@
  * Depth comes from an optional pack (mise_depth); this page needs the two
  * PNGs only.
  *
- * @module openfilm-film-depth
+ * @module mise-film-depth
  */
 
 import { CINE_GRADES, CINE_MOVES } from './film-cine.mjs';

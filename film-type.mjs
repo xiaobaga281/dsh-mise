@@ -6,7 +6,7 @@
  * cannot render a brand headline at 60 fps with exact kerning and a mask line
  * that moves with the type. This page draws that, deterministically.
  *
- * @module openfilm-film-type
+ * @module mise-film-type
  */
 
 import { gridCss } from './film-grid.mjs';

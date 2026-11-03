@@ -59,7 +59,7 @@ test('graphics modes validate their own inputs', async () => {
   assert.equal(validateGraphicsSpec({ mode: 'chart', items: [{ label: 'a', value: 1 }] }).ok, false);
   assert.equal(validateGraphicsSpec({ mode: 'chart', items: [{ label: 'a', value: 1 }, { label: 'b', value: 2 }] }).ok, true);
   assert.equal(validateGraphicsSpec({ mode: 'particles' }).ok, false);
-  assert.equal(validateGraphicsSpec({ mode: 'particles', text: 'OPENFILM' }).ok, true);
+  assert.equal(validateGraphicsSpec({ mode: 'particles', text: 'MISE' }).ok, true);
   assert.equal(validateGraphicsSpec({ mode: 'particles', text: 'x'.repeat(30) }).ok, false);
 });
 
@@ -80,7 +80,7 @@ test('both tools write pages and refuse to clobber', async () => {
   assert.ok(type, 'mise_type must be registered');
   assert.ok(gfx, 'mise_graphics must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-prim-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-prim-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
 
   const madeType = await type.execute({ cwd: dir, name: 'title', lines: [{ text: '光落在信上' }], duration: 3 });

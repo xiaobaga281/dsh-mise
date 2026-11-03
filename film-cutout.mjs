@@ -16,7 +16,7 @@
  * Decoders: pngjs (PNG) and jpeg-js (JPEG), pure JS, together under a
  * megabyte — everything else in this module is arithmetic.
  *
- * @module openfilm-cutout
+ * @module mise-cutout
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';

@@ -8,7 +8,7 @@
  *
  * Works for any aspect: landscape, portrait and square.
  *
- * @module openfilm-film-grid
+ * @module mise-film-grid
  */
 
 /** Frame sizes and margins per aspect, in 1920-long-edge units. */

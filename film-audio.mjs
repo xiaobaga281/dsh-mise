@@ -10,7 +10,7 @@
  * Reads 16-bit PCM WAV, which is what `mise_score` writes and what ffmpeg
  * converts to on request.
  *
- * @module openfilm-film-audio
+ * @module mise-film-audio
  */
 
 /** Read a little-endian chunk size and keep walking past odd padding. */

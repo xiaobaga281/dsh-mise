@@ -9,7 +9,7 @@
  * Only the top track's iframes are touched: that is where shots live. Audio and
  * overlays on other tracks keep their own timing.
  *
- * @module openfilm-film-storyboard
+ * @module mise-film-storyboard
  */
 
 /** One shot as written in the film: everything needed to put it back. */

@@ -11,7 +11,7 @@
  * Everything here is parameters: a person (or the agent) says "push in, warm
  * film, grain", not a page of code.
  *
- * @module openfilm-film-cine
+ * @module mise-film-cine
  */
 
 /** Camera moves, as (scale, pan) pairs driven by one eased progress k. */

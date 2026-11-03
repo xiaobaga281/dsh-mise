@@ -9,7 +9,7 @@
  * Pure by design: the caller supplies the probe results, so this is testable
  * without running anything.
  *
- * @module openfilm-film-doctor
+ * @module mise-film-doctor
  */
 
 /** Filters a cinematic pass can use, and what they buy. */

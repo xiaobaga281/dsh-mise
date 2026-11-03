@@ -1141,7 +1141,7 @@ const css = `
      * controls. Every field is optional so the panel keeps rendering when the
      * Host has not published it yet.
      */
-    function OpenFilmPanel({ t, inject }) {
+    function MisePanel({ t, inject }) {
       const injected = inject ?? {};
       const [status, setStatus] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
@@ -2306,7 +2306,7 @@ const css = `
                 ? h(
                     'div',
                     { className: 'of-styles' },
-                    styles.map((name) => h('span', { className: 'of-style', key: name }, `openfilm-${name}`)),
+                    styles.map((name) => h('span', { className: 'of-style', key: name }, `mise-${name}`)),
                     h('div', { className: 'of-hint' }, t('stylesHint')),
                   )
                 : null,
@@ -2329,15 +2329,15 @@ const css = `
     return {
       inject: ['slots', 'locale'],
       apply(ctx) {
-        ctx.effect(() => ctx.locale.register(NS, dicts), 'dsh-openfilm: dictionaries');
+        ctx.effect(() => ctx.locale.register(NS, dicts), 'dsh-mise: dictionaries');
         ctx.effect(() => {
           const style = document.createElement('style');
           style.dataset.plugin = PLUGIN_ID;
-          style.dataset.pluginCss = 'dsh-openfilm/panel';
+          style.dataset.pluginCss = 'dsh-mise/panel';
           style.textContent = css;
           document.head.appendChild(style);
           return () => style.remove();
-        }, 'dsh-openfilm: styles');
+        }, 'dsh-mise: styles');
 
         const t = ctx.locale.bind(NS);
 
@@ -2346,7 +2346,7 @@ const css = `
         // id. Two different values render a row that selects nothing — the
         // earlier "click does nothing" defect — so both sides read the one
         // PANEL_ID constant and cannot drift apart.
-        const PANEL_ID = 'openfilm';
+        const PANEL_ID = 'mise';
 
         // Sidebar rail row: the clapperboard mark selects the panel below.
         ctx.slots.inject('sidebar.panellist', () =>
@@ -2371,7 +2371,7 @@ const css = `
               key: PANEL_ID,
               inject: () => ({ t }),
             },
-            () => h(OpenFilmPanel, { t, inject: {} }),
+            () => h(MisePanel, { t, inject: {} }),
           ),
         );
       },

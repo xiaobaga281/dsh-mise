@@ -72,7 +72,7 @@ test('both finishing tools are registered and refuse empty projects', async () =
   assert.ok(transition, 'mise_transition must be registered');
   assert.ok(grade, 'mise_grade must be registered');
 
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-finish-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-finish-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
 
   const made = await transition.execute({ cwd: dir, name: 'cut-a', kind: 'line', duration: 0.6 });

@@ -6,7 +6,7 @@
  * passed the gates. This module builds that record from measurements only —
  * nothing here is copied from what a tool *hoped* it produced.
  *
- * @module openfilm-film-deliver
+ * @module mise-film-deliver
  */
 
 /**

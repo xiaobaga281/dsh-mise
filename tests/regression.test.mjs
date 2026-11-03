@@ -6,7 +6,7 @@
  * No network, no paid service, no ffmpeg: every fixture is a temporary folder
  * and every request is checked before anything leaves the process.
  *
- *   node --test openfilm-plugin/tests
+ *   node --test dsh-mise/tests
  */
 
 import test from 'node:test';
@@ -21,7 +21,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const plugin = (name) => new URL(`../${name}`, import.meta.url).href;
 
 function project(files) {
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-test-'));
   for (const [name, body] of Object.entries(files)) {
     const target = join(dir, name);
     mkdirSync(join(target, '..'), { recursive: true });

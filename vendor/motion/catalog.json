@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "source": "FredTalk 2.1 (MIT) — the selection-gate idea, adapted to OpenFilm pages",
+  "source": "FredTalk 2.1 (MIT) — the selection-gate idea, adapted to Mise pages",
   "note": "Each entry is a motion pattern a shot page can draw with of-motion.mjs + CSS. Search before inventing: a shot should name the pattern it uses and why.",
   "patterns": [
     {

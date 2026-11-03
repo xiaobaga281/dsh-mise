@@ -1,18 +1,19 @@
 /**
- * Host half of `@local/dsh-openfilm`.
+ * Host half of `@local/dsh-mise`.
  *
- * Bundles the upstream `openfilm` npm package (MIT, github.com/mise/openfilm)
- * under `vendor/node_modules/` and wires it into the harness natively:
+ * Mise is self-contained: films are HTML pages, and this module composes,
+ * scores, checks, measures, renders and delivers them with nothing outside this
+ * folder except node, ffmpeg and a Chromium build.
  *
- *   - tools: `mise_manual` (the film-format manual the agent reads before
- *     writing a film) and `mise_run` (every CLI command: open/look/render/
- *     get/capture/skills). The CLI is spawned with the profile's own node via
- *     absolute paths — no npm, no npx, no network at call time.
- *   - skills: the ten official OpenFilm style skills (keynote, collage,
- *     whiteboard, …) registered through `ctx.skills` so the model discovers
- *     them in the catalog, plus an `openfilm` skill carrying the manual.
+ *   - tools: 37, from `mise_plan` (shots, pacing, score grid, grade) through
+ *     `mise_probe` (measure one page before it costs a render) to
+ *     `mise_render` and `mise_deliver`.
+ *   - skills: the ten style documents in `skills/` (keynote, collage,
+ *     whiteboard, …) plus the `mise` skill, the film-format manual the agent reads
+ *     before writing anything, all registered through `ctx.skills`.
+ *   - routes: `/mise/*` for the sidebar panel.
  *
- * @module @local/dsh-openfilm
+ * @module @local/dsh-mise
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -77,14 +78,10 @@ const PLUGIN_ROOT = dirname(fileURLToPath(import.meta.url));
 /**
  * No vendored runtime.
  *
- * This plugin used to bundle an upstream CLI and spawn it for render, look and
- * the style documents. Rendering is now ours (mise-render), the contact sheet is
- * ours (mise-look), and the style documents travel in `skills/`. What remains
- * here are the two names the rest of this file still asks about: whether the
- * plugin can render at all, and which version it reports.
+ * Rendering, contact sheets and the style documents are this plugin's own; no
+ * upstream runtime is bundled or spawned, so there is no package or binary to
+ * point at. The version below is read from this plugin's own manifest.
  */
-const OPENFILM_PKG = undefined;
-const OPENFILM_BIN = undefined;
 
 /**
  * The frame grabbers, resolved by name and never by path.
@@ -96,10 +93,10 @@ const OPENFILM_BIN = undefined;
  */
 const FFMPEG_COMMAND = toolPath('ffmpeg');
 const FFPROBE_COMMAND = toolPath('ffprobe');
-const OPENFILM_SKILLS_DIR = join(PLUGIN_ROOT, 'skills');
+const SKILLS_DIR = join(PLUGIN_ROOT, 'skills');
 
 /** Version, read once from this plugin's own manifest. */
-const OPENFILM_VERSION = (() => {
+const MISE_VERSION = (() => {
   try {
     return JSON.parse(readFileSync(join(PLUGIN_ROOT, 'package.json'), 'utf8')).version ?? 'unknown';
   } catch {
@@ -110,7 +107,7 @@ const OPENFILM_VERSION = (() => {
 /** ── Shared state ───────────────────────────────────────────────────────── */
 
 /**
- * The media services `openfilm get` can draw on, named by the environment key
+ * The media services `mise_asset` can draw on, named by the environment key
  * each one reads. Upstream looks these up in the child's environment, so the
  * bridge below feeds them from the harness credential store.
  */
@@ -148,10 +145,9 @@ const PROVIDER_ENVS = [
   'PIXABAY_API_KEY',
   'BRAVE_API_KEY',
   'TAVILY_API_KEY',
-  // Not an upstream OpenFilm provider: the plugin's own asset tool calls Agnes
-  // directly, because upstream has no video generation at all and its `get`
-  // dispatch cannot be extended. Listed here so the panel configures it in the
-  // same place as the rest.
+  // Agnes is called directly by this plugin's own asset tool rather than
+  // through a vendor adapter, because it is the one service wired in end to end
+  // (image and video). Listed here so the panel configures it beside the rest.
   'AGNES_API_KEY',
 ];
 
@@ -162,9 +158,8 @@ const AGNES_TEXT_MODEL = 'agnes-3.0-flash';
 const AGNES_BASE_URL = 'https://apihub.agnes-ai.com';
 
 /**
- * Commands the panel may trigger. `update` is deliberately absent: it installs
- * a new OpenFilm over the global one, which is a decision for a person or the
- * agent, never something a watching panel should be able to set off.
+ * Commands the panel may trigger. An `update` verb is deliberately absent:
+ * there is nothing to update, because the plugin is the whole implementation.
  */
 const PANEL_COMMANDS = new Set(['look', 'render', 'skills', 'skill', 'manual']);
 /** What the agent tool may trigger: the panel set, plus opening a project. */
@@ -233,7 +228,7 @@ function assertRunAllowed(argv, cwd, caller) {
     if (!allowed.has(head)) {
       throw new HttpError(400, caller === 'panel'
         ? `command "${head}" cannot be run from the panel`
-        : `unknown openfilm command "${head}"`);
+        : `unknown mise_run command "${head}"`);
     }
   }
 
@@ -298,12 +293,16 @@ const KNOWN_PROJECTS = new Map();
  * Only paths that were really opened or reported are kept — nothing is guessed
  * and no install location is assumed.
  */
-const PROJECTS_FILE = join(process.env.DSH_HOME || join(process.env.USERPROFILE || '', '.dsh'), 'openfilm-projects.json');
+const DSH_STATE = process.env.DSH_HOME || join(process.env.USERPROFILE || '', '.dsh');
+const PROJECTS_FILE = join(DSH_STATE, 'mise-projects.json');
+/** Before 2.x this file was named after the plugin's old id; read it while it is all that exists. */
+const LEGACY_PROJECTS_FILE = join(DSH_STATE, 'openfilm-projects.json');
 
 /** Remembered films that still exist, newest use first. @returns {Array<{ path: string, lastUsedAt: number }>} */
 function loadProjectSeeds() {
   try {
-    const parsed = JSON.parse(readFileSync(PROJECTS_FILE, 'utf8'));
+    const file = !existsSync(PROJECTS_FILE) && existsSync(LEGACY_PROJECTS_FILE) ? LEGACY_PROJECTS_FILE : PROJECTS_FILE;
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
     const list = Array.isArray(parsed?.projects) ? parsed.projects : [];
     return list
       .filter((entry) => typeof entry?.path === 'string' && existsSync(join(entry.path, 'film.html')))
@@ -444,40 +443,6 @@ function snapshotProgress(sessionId) {
 }
 
 /** ── Credential bridge for the media services ───────────────────────────── */
-
-/**
- * The environment for one child run: the harness process's own environment,
- * plus every media-service key the person has stored in the harness credential
- * store. A key already set in the real environment wins — the bridge adds, it
- * never overrides.
- *
- * Values are read here and handed straight to the child; they are never
- * returned, logged, or placed in any response.
- * @param {object} ctx Host context
- * @returns {Promise<Record<string, string>>}
- */
-async function childEnvironment(ctx) {
-  const env = {
-    ...process.env,
-    // The CLI is run headless; its output is all the caller needs.
-    OPENFILM_NO_BROWSER: process.env.OPENFILM_NO_BROWSER ?? '1',
-    // Upstream writes its docs as `npx openfilm …`; the harness has no working
-    // npx here, so the printed commands name the tool that does work.
-    OPENFILM_RUN: process.env.OPENFILM_RUN ?? 'mise_run',
-  };
-  const credentials = ctx.get?.('credentials');
-  if (!credentials?.resolve) return env;
-  for (const name of PROVIDER_ENVS) {
-    if (typeof process.env[name] === 'string' && process.env[name].length > 0) continue;
-    try {
-      const resolved = await credentials.resolve(name);
-      if (typeof resolved?.value === 'string' && resolved.value.length > 0) env[name] = resolved.value;
-    } catch {
-      // An unreadable credential is simply an unconnected service.
-    }
-  }
-  return env;
-}
 
 /**
  * Read one provider key for a direct call this plugin makes itself (the Agnes
@@ -751,7 +716,7 @@ async function writeProviderCredential(ctx, body) {
  * this profile's composition at all. `speechController` is additionally a
  * `@Remote` service, reachable only across the typert protocol.
  *
- * So the harness's own transcription cannot be bridged into OpenFilm today.
+ * So the harness's own transcription cannot be bridged into a film today.
  * This probe stays because it answers "why can't I transcribe" with evidence
  * rather than a guess, and it will start reporting the services the moment a
  * composition loads them.
@@ -778,12 +743,6 @@ async function probeSpeech(ctx) {
   return { available: Object.keys(services).length > 0, services };
 }
 
-/**
- * Run the openfilm CLI.
- * @param {readonly string[]} args argv after the bin
- * @param {{ cwd?: string, timeoutMs?: number, signal?: AbortSignal, env?: Record<string,string>, sessionId?: string }} options
- * @returns {Promise<{ exitCode: number|null, stdout: string, stderr: string, timedOut: boolean, killed: boolean, truncated: boolean }>}
- */
 /**
  * The command dispatcher, with no vendored runtime behind it.
  *
@@ -914,8 +873,9 @@ async function runOpenfilm(args, options = {}) {
       return ok(`project ${projectPath}`);
     }
 
-    return fail(`"${command ?? ''}" was a command of the vendored runtime, which this plugin no longer bundles. ` +
-      'Use mise_render, mise_look, mise_thumbs, mise_compose or mise_promo instead.');
+    return fail(`"${command ?? ''}" is not a command this plugin answers. ` +
+      'The five it does answer are open, look, render, skills and manual; ' +
+      'everything else is its own tool (mise_render, mise_look, mise_compose, mise_asset).');
   } catch (error) {
     return fail(String(error?.message ?? error));
   }
@@ -989,19 +949,18 @@ function newestSessionDirectory(ctx) {
 }
 
 /**
- * Rewrite upstream's own command examples for this harness.
+ * Rewrite command examples the documents inherited from the CLI they were
+ * written for.
  *
- * OpenFilm writes its manual and skill files as `npx openfilm …`, which is how
- * it expects a terminal agent to call it. Here there is no working npx (the npm
- * cache on this machine is not writable), and the real entry point is the
+ * The style documents describe a terminal workflow; the entry point here is the
  * `mise_run` tool, so every copy the model reads is rewritten in one place.
  * @param {string} text
  * @returns {string}
  */
 function harnessize(text) {
   return String(text ?? '')
-    .replace(/npx -y openfilm@latest/g, 'mise_run')
-    .replace(/npx openfilm/g, 'mise_run');
+    .replace(/npx -y (?:openfilm|mise)@latest/g, 'mise_run')
+    .replace(/npx (?:openfilm|mise)\b/g, 'mise_run');
 }
 
 /** ── HTTP routes for the client half ───────────────────────────────────── */
@@ -1309,7 +1268,7 @@ async function readJsonBody(request) {
 }
 
 /**
- * Describe the OpenFilm install and the film project as of this exact request.
+ * Describe the plugin, the film project and the toolchain as of this exact request.
  *
  * The project is chosen in a fixed order, most specific first: the directory
  * the caller named, then the film this session was last working on, then the
@@ -1354,7 +1313,7 @@ async function describeStatus(ctx, query = {}) {
   return {
     ok: true,
     installed: true,
-    version: OPENFILM_VERSION,
+    version: MISE_VERSION,
     project: projectPath ? { path: projectPath, inProject: true } : null,
     projects,
     // No web Studio address: the panel edits the film itself.
@@ -1849,7 +1808,7 @@ async function submitRegionEdit(ctx, body) {
     'How to do it: change only that part and leave every other object and the composition as they are.',
     'Prefer the page layer when the detail can be drawn (text, sticker, colour, mask, crop, a small overlay placed at those coordinates) — it needs no regeneration and other pixels stay identical.',
     'Only if the detail is baked into a generated still, do a local repaint of that crop: edit the crop, feather its edge, composite it back into the original asset at those pixels, and keep the original file as a variant.',
-    'Then run mise_check and openfilm look on that moment to prove nothing else moved. The panel redraws from the files, so the change shows up as soon as they are written.',
+    'Then run mise_check and mise_run ["look"] on that moment to prove nothing else moved. The panel redraws from the files, so the change shows up as soon as they are written.',
     'Reply in a few lines: what you changed, which file, and how the person can see it.',
   ];
   const text = lines.join('\n');
@@ -1864,7 +1823,7 @@ async function submitRegionEdit(ctx, body) {
 
   if (agent?.followup) {
     agent.followup(userMessage(text));
-    beginProgress('openfilm_region', `region edit @${time.toFixed(1)}s`, { sessionId, projectPath }).finish('done', 'submitted to the agent');
+    beginProgress('mise_region', `region edit @${time.toFixed(1)}s`, { sessionId, projectPath }).finish('done', 'submitted to the agent');
     return { ok: true, submitted: true, id, time, rect, pixels: px, crop: made.crop ? relative(projectPath, made.crop).split(sep).join('/') : null, message: '已交给做这支片的会话，侧边栏会显示修改', owner: owner ?? null };
   }
   // The film knows its conversation, but that conversation is not loaded: say
@@ -2038,7 +1997,7 @@ function mountRoutes(ctx) {
     },
     {
       // Save or remove a media-service key from the panel. The name must be one
-      // of the providers OpenFilm knows (see writeProviderCredential), so this
+      // of the providers this plugin knows (see writeProviderCredential), so this
       // can never touch Harness's own credentials.
       method: 'POST',
       path: '/mise/credential',
@@ -2183,7 +2142,7 @@ const RUN_OUTPUT_SCHEMA = {
 
 function renderRunOutput(_args, value) {
   const parts = [];
-  if (value.exitCode !== 0) parts.push(`openfilm exited with code ${value.exitCode}${value.timedOut ? ' (timed out)' : ''}.`);
+  if (value.exitCode !== 0) parts.push(`the film command exited with code ${value.exitCode}${value.timedOut ? ' (timed out)' : ''}.`);
   if (value.stdout) parts.push(value.stdout);
   if (value.stderr) parts.push(`stderr:\n${value.stderr}`);
   if (value.truncated) parts.push('(output truncated)');
@@ -2194,21 +2153,21 @@ function buildManualTool(ctx) {
   return {
     name: 'mise_manual',
     description:
-      'Print the OpenFilm agent manual: the complete guide to making a film — a web page, film.html, that cuts shot pages, footage and sound together, with the shots listed and editable in the plugin panel. ' +
+      'Print the film-format manual: the complete guide to making a film — a web page, film.html, that cuts shot pages, footage and sound together, with the shots listed and editable in the plugin panel. ' +
       'Read it before writing any film; then create the project and draw its frames so the person can watch it take shape in the panel.',
     parameters: MANUAL_ARGS,
     output: {
       schema: { type: 'object', additionalProperties: false, properties: { manual: { type: 'string' } }, required: ['manual'] },
       render: (_args, value) => [{ type: 'text', text: value?.manual || '(empty manual)' }],
     },
-    presentCall: () => ({ card: 'generic', title: 'Read the OpenFilm manual', kind: 'read' }),
+    presentCall: () => ({ card: 'generic', title: 'Read the film manual', kind: 'read' }),
     async execute(_args, exec) {
-            const progress = beginProgress('mise_manual', 'openfilm manual');
+            const progress = beginProgress('mise_manual', 'mise manual');
       try {
         const result = await runOpenfilm([], { cwd: await sessionCwd(ctx, exec?.agent), timeoutMs: 30_000, signal: exec?.signal });
         if (result.exitCode !== 0 && !result.stdout) {
           progress.fail(`exit ${result.exitCode}: ${result.stderr || 'no output'}`);
-          throw new Error(`openfilm failed (exit ${result.exitCode}): ${result.stderr || 'no output'}`);
+          throw new Error(`the film command failed (exit ${result.exitCode}): ${result.stderr || 'no output'}`);
         }
         progress.finish(result.exitCode === 0 ? 'done' : 'error', `${result.stdout.length} bytes`);
         return { manual: result.stdout };
@@ -2226,22 +2185,20 @@ function buildRunTool(ctx) {
   return {
     name: 'mise_run',
     description:
-      'Run one OpenFilm command in the film project. Commands: ' +
-      '"open" [folder|GitHub url] — create/open a project (optional: the panel does not need it); ' +
-      '"look" [what] [t | a-b] — check the film and draw it: PNG contact sheets under .film/cache/look/ (paths are printed); ' +
+      'Run one film command in the current project. Commands: ' +
+      '"open" [folder] — create a project that already renders and lists one shot; ' +
+      '"look" [t | a-b] — draw the film and write PNG contact sheets under .film/cache/look/ (paths are printed); ' +
       '"render" [--out file] [--fps n] [--ss n] [--4k] [--blur] — the MP4 beside film.html (default 1080p, rasterised at 2× and scaled down); ' +
-      '"get" [what] [--options] — voice-over, music, sound effects, transcripts, images from the person\'s connected services (run alone to list what is connected); ' +
-      '"capture" <url> <file.png> [--full] [--size WxH] [--selector css] — a picture of a live web page; ' +
-      '"skills" / "skill" <name> — list or print the official filmmaking skills; ' +
-      '"update" — update OpenFilm itself. ' +
-      'look, render and get work on the film project around the working directory; run "open <name>" first to create one. Exit codes: 0 done, 1 failed (output says why), 2 not a project or wrong command.',
+      '"skills" / "skill" <name> — list or print the style documents that ship with the plugin; ' +
+      '"manual" — print the film-format manual. ' +
+      'look and render work on the project around the working directory; run "open <name>" first to create one. Exit codes: 0 done, 1 failed (output says why), 2 not a project or wrong command.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
         args: {
           type: 'array',
-          description: 'Command-line arguments after "openfilm", e.g. ["open","launch-video"], ["look","4.5"], ["render","--fps","60"], ["skill","keynote"]. Each element is one argv word; do not quote or join.',
+          description: 'Command-line arguments, e.g. ["open","launch-video"], ["look","4.5"], ["render","--fps","60"], ["skill","keynote"]. Each element is one argv word; do not quote or join.',
           items: { type: 'string' },
         },
         cwd: {
@@ -2262,7 +2219,7 @@ function buildRunTool(ctx) {
     output: { schema: RUN_OUTPUT_SCHEMA, render: renderRunOutput },
     presentCall: (args) => ({
       card: 'terminal',
-      title: `openfilm ${(Array.isArray(args?.args) ? args.args : []).join(' ')}`.trim(),
+      title: `mise ${(Array.isArray(args?.args) ? args.args : []).join(' ')}`.trim(),
       kind: 'execute',
       cwd: args?.cwd,
     }),
@@ -2281,7 +2238,7 @@ function buildRunTool(ctx) {
 
       // Side-channel only: the return value and every throw below are exactly
       // what they were without it. The record reports the real exit code.
-      const progress = beginProgress('mise_run', `openfilm ${argv.join(' ')}`, { sessionId, projectPath: resolveProjectFrom(cwd) });
+      const progress = beginProgress('mise_run', `mise ${argv.join(' ')}`, { sessionId, projectPath: resolveProjectFrom(cwd) });
       try {
         const result = await runOpenfilm(argv, { ctx, cwd, timeoutMs: timeout, signal: exec?.signal, sessionId });
         noteProject(resolveProjectFrom(cwd), sessionId);
@@ -2310,7 +2267,7 @@ function buildRunTool(ctx) {
         let note;
         if (argv[0] === 'get' && result.exitCode !== 0) {
           const reason = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-          note = reason || 'openfilm get failed without a reason';
+          note = reason || 'the media request failed without a reason';
         }
         return {
           exitCode: result.exitCode,
@@ -2895,7 +2852,7 @@ function buildReviewTool(ctx) {
     name: 'mise_review',
     description:
       'The per-shot keyframe gate: look at each shot before the film is rendered. ' +
-      'Actions: "status" (default) lists every shot with its keyframe time and verdict; "keyframes" draws a missing keyframe for each shot with openfilm look and records it under .film/review/; ' +
+      'Actions: "status" (default) lists every shot with its keyframe time and verdict; "keyframes" draws a missing keyframe for each shot with mise_run ["look"] and records it under .film/review/; ' +
       '"approve" marks one shot good (optionally with a note); "reject" marks one shot as needing a change and REQUIRES a note saying what. ' +
       'readyToRender is true only when every shot is approved — do not render before that. ' +
       'A shot the film no longer has drops off the list, and a new shot appears pending, so an edit cannot slip past the gate.',
@@ -3882,14 +3839,14 @@ function demoCopy(kind, index, subject) {
         { text: 'A FILM IN CODE', role: 'eyebrow' },
         { text: subject },
         { text: '没有视频模型，也没有素材', role: 'sub' },
-        { text: '全部由代码绘制 · openfilm', role: 'note' },
+        { text: '全部由代码绘制 · Mise', role: 'note' },
       ],
     };
   }
   // Every kind must draw something: a skipped beat leaves a hole in the film.
   if (kind === 'type') return { lines: [{ text: '每一帧都是画出来的', kicker: 'drawn, not generated' }] };
   if (kind === 'end') return { lines: [{ text: '全部由代码绘制', kicker: 'no video model' }] };
-  if (kind === 'graphics') return { mode: index % 2 === 0 ? 'chart' : 'particles', title: '一帧的成本', items: [{ label: '代码', value: 1 }, { label: '渲染', value: 2 }, { label: '配乐', value: 1 }], text: 'OPENFILM' };
+  if (kind === 'graphics') return { mode: index % 2 === 0 ? 'chart' : 'particles', title: '一帧的成本', items: [{ label: '代码', value: 1 }, { label: '渲染', value: 2 }, { label: '配乐', value: 1 }], text: 'MISE' };
   // A camera that travels the full depth pushes the panels out of frame by the
   // middle of a short beat (a near-black shot). "rise" keeps the world on
   // screen for the whole length, which is what a sample must do.
@@ -3911,7 +3868,7 @@ function buildDemoTool(ctx) {
       additionalProperties: false,
       properties: {
         cwd: { type: 'string', description: 'Where to build the sample (defaults to the session working directory).' },
-        name: { type: 'string', description: 'Folder name for the sample (default openfilm-demo).' },
+        name: { type: 'string', description: 'Folder name for the sample (default mise-demo).' },
         genre: { type: 'string', enum: Object.keys(GENRES), description: 'Recipe to sample (default title-sequence).' },
         seconds: { type: 'number', description: 'Target length (default 16).' },
         subject: { type: 'string', description: 'Headline of the sample (default 代码生成的影像).' },
@@ -3938,7 +3895,7 @@ function buildDemoTool(ctx) {
     presentCall: (args) => ({ card: 'generic', title: 'Build a demo film', kind: 'other', rawInput: args?.genre ?? 'title-sequence' }),
     async execute(args, exec) {
       const base = typeof args?.cwd === 'string' && args.cwd.length > 0 ? args.cwd : await sessionCwd(ctx);
-      const name = String(args?.name ?? 'openfilm-demo').replace(/[^A-Za-z0-9._-]+/g, '-');
+      const name = String(args?.name ?? 'mise-demo').replace(/[^A-Za-z0-9._-]+/g, '-');
       const projectPath = join(base, name);
       if (existsSync(projectPath) && args?.force !== true) {
         const existing = readdirSync(projectPath).filter((n) => n.endsWith('.html') || n.endsWith('.mp4'));
@@ -5312,7 +5269,7 @@ function buildPromoTool(ctx) {
               claim: { type: 'string', description: 'claim: the sentence to argue.' },
               evidence: { type: 'array', description: 'claim: rows of { text, source }.' },
               url: { type: 'string', description: 'end: the address on the card.' },
-              brand: { type: 'string', description: 'The mark in the top-left (default OPENFILM).' },
+              brand: { type: 'string', description: 'The mark in the top-left (default MISE).' },
             },
             required: ['kind'],
           },
@@ -6043,7 +6000,7 @@ function buildMiseRenderTool(ctx) {
     name: 'mise_render',
     description:
       'Render a film project to MP4 with Mise\'s own renderer: it serves the project over a throwaway loopback server, drives each page\'s ' +
-      'clock frame by frame in a headless browser, and muxes the film\'s audio with ffmpeg. No Studio, no web app, no OpenFilm runtime.',
+      'clock frame by frame in a headless browser, and muxes the film\'s audio with ffmpeg. No studio, no web app, no external video model.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6884,7 +6841,7 @@ function probePacks() {
   // Only a pack whose files match its manifest counts as installed: a folder
   // that failed verification must not lift the doctor's tier.
   const packs = listPacks();
-  return { installed: packs.filter((p) => p.ok).map((p) => p.name), dir: join(process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || '', '.dsh'), 'openfilm-packs') };
+  return { installed: packs.filter((p) => p.ok).map((p) => p.name), dir: join(process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || '', '.dsh'), 'mise-packs') };
 }
 
 function buildDoctorTool(ctx) {
@@ -7287,7 +7244,7 @@ const CHECK_OUTPUT_SCHEMA = {
     },
     deferred: {
       type: 'array',
-      description: 'What static reading cannot decide and openfilm look can: a dynamic stage size, or a clip whose length lives in its file.',
+      description: 'What static reading cannot decide and mise_run look can: a dynamic stage size, or a clip whose length lives in its file.',
       items: {
         type: 'object',
         additionalProperties: true,
@@ -7354,7 +7311,7 @@ function buildCheckTool(ctx) {
       'Read film.html and report what is wrong BEFORE anything expensive runs. ' +
       'Catches, as blocking problems: a still with no #t=0,length; two clips overlapping on one track (including a short clip inside a long one); a src pointing at a file that does not exist; ' +
       'a page loading a missing asset; speed/volume/fade out of range; a page whose declared duration/width/height is a provably invalid number. ' +
-      'Reports separately the warnings (a picture keeping its rectangular background, a voice-cast mismatch) and what static reading cannot decide but openfilm look can (a page whose length comes from its own duration, a size computed at runtime). ' +
+      'Reports separately the warnings (a picture keeping its rectangular background, a voice-cast mismatch) and what static reading cannot decide but mise_run look can (a page whose length comes from its own duration, a size computed at runtime). ' +
       'Also reports the facts: stage size, track and clip counts, total length (when every clip\'s length is written in the markup). ' +
       'Run this after writing or editing a film, before look or render — a 50 ms check instead of a failed render.',
     parameters: {
@@ -7454,7 +7411,7 @@ function buildNewTool(ctx) {
   return {
     name: 'mise_new',
     description:
-      'Create a new OpenFilm film project that renders before anything is written into it: film.html with a real stage and one correctly timed shot, the shot page itself (a title that rises in, over the motion kit), and of-motion.mjs. ' +
+      'Create a new Mise film project that renders before anything is written into it: film.html with a real stage and one correctly timed shot, the shot page itself (a title that rises in, over the motion kit), and of-motion.mjs. ' +
       'Run mise_check on it, then mise_run ["look"] — the first look shows a picture, not an error. ' +
       'Never overwrites: if film.html already exists there, the tool refuses and says to open it instead.',
     parameters: {
@@ -7745,10 +7702,10 @@ const OFFICIAL_SKILL_NAMES = ['collage', 'keynote', 'long-to-short', 'lyric-vide
 /** Build skill registrations straight from the vendored package's skills/ directory. */
 function buildOfficialSkills() {
   const skills = [];
-  if (!OPENFILM_SKILLS_DIR || !existsSync(OPENFILM_SKILLS_DIR)) return skills;
-  for (const name of readdirSync(OPENFILM_SKILLS_DIR)) {
+  if (!SKILLS_DIR || !existsSync(SKILLS_DIR)) return skills;
+  for (const name of readdirSync(SKILLS_DIR)) {
     if (!OFFICIAL_SKILL_NAMES.includes(name)) continue;
-    const file = join(OPENFILM_SKILLS_DIR, name, 'SKILL.md');
+    const file = join(SKILLS_DIR, name, 'SKILL.md');
     if (!existsSync(file)) continue;
     const parsed = parseSkillFrontmatter(readFileSync(file, 'utf8'));
     if (!parsed || typeof parsed.data.name !== 'string' || typeof parsed.data.description !== 'string') continue;
@@ -7757,7 +7714,7 @@ function buildOfficialSkills() {
       description: parsed.data.description,
       whenToUse: parsed.data.whenToUse,
       content: parsed.body,
-      metadata: { openfilm: true, upstream: `https://github.com/mise/skills/tree/main/skills/${parsed.data.name}` },
+      metadata: { upstream: `https://github.com/openfilm/skills/tree/main/skills/${parsed.data.name}` },
     });
   }
   return skills;
@@ -7902,8 +7859,8 @@ function buildManualSkill() {
   const manualPath = join(PLUGIN_ROOT, 'skills', 'MANUAL.md');
   if (!existsSync(manualPath)) return undefined;
   const manual = readFileSync(manualPath, 'utf8');
-  const tail = '---\nMise ' + OPENFILM_VERSION
-    + ', built on the OpenFilm film format (MIT) — the pages, the clip model and the skills.'
+  const tail = '---\nMise ' + MISE_VERSION
+    + ', built on a film format that is pages, clips and window.film.frame(t).'
     + ' Rendering, the contact sheet and the thumbnails are Mise\'s own: mise_render, mise_look, mise_thumbs.';
   return {
     name: 'mise',
@@ -7962,7 +7919,7 @@ export function apply(ctx) {
       ctx.tools?.register(buildDepthTool(ctx)),
     ].filter((dispose) => typeof dispose === 'function');
     return () => { for (const dispose of disposeTools) { try { dispose(); } catch {} } };
-  }, 'dsh-openfilm: tools');
+  }, 'dsh-mise: tools');
 
   const manualSkill = buildManualSkill();
   const officialSkills = buildOfficialSkills();
@@ -7979,21 +7936,21 @@ export function apply(ctx) {
             invocation: { modelInvocable: true, userInvocable: true },
           });
         } catch (error) {
-          ctx.logger?.warn?.(`@local/dsh-openfilm: skill ${skill.name} not registered: ${error?.message ?? error}`);
+          ctx.logger?.warn?.(`@local/dsh-mise: skill ${skill.name} not registered: ${error?.message ?? error}`);
           return undefined;
         }
       }).filter((dispose) => typeof dispose === 'function');
       return () => { for (const dispose of disposers) { try { dispose(); } catch {} } };
-    }, 'dsh-openfilm: skills');
+    }, 'dsh-mise: skills');
   }
 
   const commands = ctx.get?.('commands');
   if (commands) {
-    ctx.effect(() => commands.register(buildVideoCommand(ctx)), 'dsh-openfilm: /video command');
+    ctx.effect(() => commands.register(buildVideoCommand(ctx)), 'dsh-mise: /video command');
   }
 
   if (ctx.webServer) {
-    ctx.effect(() => mountRoutes(ctx), 'dsh-openfilm: http routes');
+    ctx.effect(() => mountRoutes(ctx), 'dsh-mise: http routes');
   }
 
   // Continue any video a previous process left running. The job files keep the
@@ -8015,11 +7972,11 @@ export function apply(ctx) {
           });
         }
       } catch (error) {
-        ctx.logger?.warn?.(`@local/dsh-openfilm: could not resume media jobs: ${error?.message ?? error}`);
+        ctx.logger?.warn?.(`@local/dsh-mise: could not resume media jobs: ${error?.message ?? error}`);
       }
     })();
     return () => { stopped = true; };
-  }, 'dsh-openfilm: resume media jobs');
+  }, 'dsh-mise: resume media jobs');
 }
 
 /** ── /video composer command ───────────────────────────────────────────── */
@@ -8027,7 +7984,7 @@ export function apply(ctx) {
 const VIDEO_USAGE = [
   'Usage:',
   '  /video <description>          ask the agent to make a film from a description',
-  '  /video styles                 list the official OpenFilm filmmaking skills',
+  '  /video styles                 list the style skills that ship with Mise',
   '  /video skill <name>           print one style skill (e.g. keynote, whiteboard)',
   '  /video open [folder|url]      create/open the project',
   '  /video look [t | a-b]         check the film and draw it (contact-sheet PNG paths)',
@@ -8037,15 +7994,15 @@ const VIDEO_USAGE = [
 /** The directive handed to the model when /video is used with a description. */
 function videoDirective(description, style) {
   const lines = [
-    'Make a film with OpenFilm (the harness has the openfilm tools and skills installed).',
+    'Make a film with Mise (the harness has the mise_* tools and the style skills installed).',
     '',
     `The person asked for this film: ${description}`,
   ];
-  if (style) lines.push(`They named the OpenFilm style skill "${style}" — load the matching openfilm-<style> skill and follow it whole.`);
+  if (style) lines.push(`They named the style skill "${style}" — load the matching mise-<style> skill and follow it whole.`);
   lines.push(
     '',
     'How to do it:',
-    '1. Read the `openfilm` skill (or call mise_manual) before writing any film — a film is a web page, film.html.',
+    '1. Read the `mise` skill (or call mise_manual) before writing any film — a film is a web page, film.html.',
     '2. Pick a short kebab-case film name and run mise_run with args ["open", "<name>"] to create the project: the panel lists its shots as soon as it exists, and the person retimes them there.',
     '3. Write one shot per HTML page (window.film.frame(t) draws moment t; the picture depends only on t) and cut them together in film.html.',
     '4. Check your work with mise_run ["look"] (and ["look", "4.5"] for a single frame); it also proves the same t draws the same picture.',
@@ -8076,7 +8033,7 @@ function userMessage(text) {
 function buildVideoCommand(ctx) {
   return {
     name: 'video',
-    description: 'Make a film with OpenFilm, or drive it (look / render)',
+    description: 'Make a film with Mise, or drive it (look / render)',
     input: { hint: '<description>|styles|skill <name>|open|look|render', attachments: true },
     handler: async (invocation) => {
       const input = (invocation.rawInput ?? '').trim();
@@ -8105,7 +8062,7 @@ function buildVideoCommand(ctx) {
         const body = [r.stdout, r.stderr && `stderr:\n${r.stderr}`].filter(Boolean).join('\n');
         return r.exitCode === 0
           ? { kind: 'success', text: body || 'done' }
-          : { kind: 'error', text: body || `openfilm ${verb} failed (exit ${r.exitCode})` };
+          : { kind: 'error', text: body || `mise_run ${verb} failed (exit ${r.exitCode})` };
       }
 
       // Anything else is a film request: hand it to the model as a directive.
@@ -8131,4 +8088,4 @@ function buildVideoCommand(ctx) {
   };
 }
 
-export const name = 'openfilm';
+export const name = 'mise';

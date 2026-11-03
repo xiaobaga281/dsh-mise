@@ -14,7 +14,7 @@ import { grainRuntime } from './film-motionlib.mjs';
  * runs (no WebGL context to lose), and a panel world is exactly what it is
  * good at.
  *
- * @module openfilm-film-scene
+ * @module mise-film-scene
  */
 
 export const SCENE_MOVES = {

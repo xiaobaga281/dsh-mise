@@ -8,7 +8,7 @@
  * stack in one place and makes the risk a checkable fact rather than a surprise
  * at render time.
  *
- * @module openfilm-film-fonts
+ * @module mise-film-fonts
  */
 
 /**

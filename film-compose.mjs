@@ -10,7 +10,7 @@
  * No image library, no native dependency: PNG decoding is done here with zlib,
  * which every Node runtime already has.
  *
- * @module openfilm-film-compose
+ * @module mise-film-compose
  */
 
 import { inflateSync } from 'node:zlib';

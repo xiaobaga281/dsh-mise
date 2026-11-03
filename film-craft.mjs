@@ -14,7 +14,7 @@
  * The point of putting them in code is nothing here stays a suggestion: the
  * page builders read these, and the tests check the pages obey them.
  *
- * @module openfilm-film-craft
+ * @module mise-film-craft
  */
 
 /** Seconds. The ladder, not a menu. */

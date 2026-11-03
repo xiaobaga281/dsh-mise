@@ -28,8 +28,8 @@ let modUtils = {};
 test('a pack is only active when every hash matches', async () => {
   const packs = await import(mod);
   modUtils = packs;
-  const home = mkdtempSync(join(tmpdir(), 'openfilm-home-'));
-  const src = mkdtempSync(join(tmpdir(), 'openfilm-pack-'));
+  const home = mkdtempSync(join(tmpdir(), 'mise-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'mise-pack-'));
   makePack(src);
 
   const read = packs.readPack(src);
@@ -56,8 +56,8 @@ test('a pack is only active when every hash matches', async () => {
 test('install copies, verifies, lists, replaces and removes', async () => {
   const packs = await import(mod);
   modUtils = packs;
-  const home = mkdtempSync(join(tmpdir(), 'openfilm-home-'));
-  const src = mkdtempSync(join(tmpdir(), 'openfilm-pack-'));
+  const home = mkdtempSync(join(tmpdir(), 'mise-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'mise-pack-'));
   makePack(src, { name: 'interp-fast', kind: 'interp' });
 
   const installed = packs.installPack({ from: src, home });
@@ -83,8 +83,8 @@ test('install copies, verifies, lists, replaces and removes', async () => {
 
 test('the pack tool lists, installs, verifies and removes through the harness home', async () => {
   const plugin = await import(new URL('../index.js', import.meta.url).href);
-  const home = mkdtempSync(join(tmpdir(), 'openfilm-home-'));
-  const src = mkdtempSync(join(tmpdir(), 'openfilm-pack-'));
+  const home = mkdtempSync(join(tmpdir(), 'mise-home-'));
+  const src = mkdtempSync(join(tmpdir(), 'mise-pack-'));
   makePack(src, { name: 'lut-film', kind: 'lut' });
 
   const previous = process.env.DSH_HOME;

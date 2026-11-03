@@ -8,7 +8,7 @@
  * motion kit, the kit itself — so the first `look` shows a picture instead of
  * an error, and every later edit starts from something that works.
  *
- * @module openfilm-new
+ * @module mise-new
  */
 
 import { mkdirSync, copyFileSync, existsSync, writeFileSync } from 'node:fs';

@@ -16,7 +16,7 @@ const doctor = new URL('../film-doctor.mjs', import.meta.url).href;
 const plugin = new URL('../index.js', import.meta.url).href;
 
 function project(extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-cine-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-cine-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section></section>');
   writeFileSync(join(dir, 'plate.png'), 'not a real png, existence is what matters here');
   for (const [name, body] of Object.entries(extra)) writeFileSync(join(dir, name), body);

@@ -6,7 +6,7 @@
  * run, and a missing pack or a missing filter is refused before anything is
  * written.
  *
- * @module openfilm-film-interpolate
+ * @module mise-film-interpolate
  */
 
 /** Frame rates a delivery can ask for. */

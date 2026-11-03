@@ -1,9 +1,9 @@
 /**
  * Agnes asset generation: real pictures and footage for a film's `assets/`.
  *
- * OpenFilm upstream has no video generation — its `get` dispatch names nine
- * fixed providers and cannot be extended — so a film made here could only ever
- * draw its pictures in code. This module calls Agnes directly instead:
+ * There is no vendor path to generated footage here — the provider catalogue is
+ * fixed and cannot be extended — so a film made with the renderer alone could
+ * draw its pictures in code and nothing else. This module calls Agnes directly:
  *
  *   image  POST /v1/images/generations   (synchronous, returns a URL or b64)
  *   video  POST /v1/videos               (asynchronous: create, then poll)
@@ -15,7 +15,7 @@
  * image model is free at the time of writing. The caller is told the cost class
  * before anything is spent; see `describeAssetCost`.
  *
- * @module openfilm-assets
+ * @module mise-assets
  */
 
 import { writeFileSync } from 'node:fs';

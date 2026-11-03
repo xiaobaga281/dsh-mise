@@ -3,13 +3,13 @@
  * looked at and approved.
  *
  * FredTalk's staged review (MIT) is the model: real content first, motion later,
- * with a recorded verdict per shot. In OpenFilm a film is pages, so "the shot"
+ * with a recorded verdict per shot. A film here is pages, so "the shot"
  * is one picture clip on the footage track, and its keyframe is a moment inside
  * it that `look` can draw. This module owns the record; drawing the keyframe is
  * the caller's job (it needs the browser), and it is stored beside the film so
  * the decision survives a restart.
  *
- * @module openfilm-film-review
+ * @module mise-film-review
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

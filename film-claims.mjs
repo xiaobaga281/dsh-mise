@@ -7,7 +7,7 @@
  * structure, so a missing proof is a checkable failure rather than a matter of
  * taste.
  *
- * @module openfilm-film-claims
+ * @module mise-film-claims
  */
 
 export const CLAIM_KINDS = ['number', 'chart', 'quote', 'source'];

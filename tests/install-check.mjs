@@ -1,7 +1,7 @@
 /**
  * Is the *installed* copy actually loadable?
  *
- * The panel showed "HTTP 404" and "OpenFilm not installed" because one module
+ * The panel showed "HTTP 404" and "plugin not installed" because one module
  * in the installed plugin was stale: index.js imported a symbol that the copied
  * film-doctor.mjs did not have, apply() threw, and with it went every tool and
  * every route. This check mounts the installed directory the way the host does,

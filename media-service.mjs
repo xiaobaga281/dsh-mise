@@ -1,7 +1,7 @@
 /**
  * Media for a film: which service makes what, and one way to make it.
  *
- * Upstream OpenFilm's providers can already make video (Google's Veo, fal's
+ * The services this plugin can call already make video (Google's Veo, fal's
  * Seedance and Kling) and take a first frame, a last frame or reference
  * pictures. What they cannot do is survive a restart: a generation is one long
  * call, and a failed poll after the request was created means asking again.
@@ -20,7 +20,7 @@
  * Nothing here spends money on its own: it runs when the agent or the panel
  * asks, with the person's own key.
  *
- * @module openfilm-media-service
+ * @module mise-media-service
  */
 
 import { spawnSync } from 'node:child_process';
@@ -467,7 +467,10 @@ function retryable(message) {
 /* ── Talking to a service ───────────────────────────────────────────────── */
 
 function serviceBase(name, fallback) {
-  return (process.env[`OPENFILM_${name}_URL`]?.trim() || fallback).replace(/\/+$/, '');
+  // MISE_<SERVICE>_URL points a call at a proxy or a mock; the older
+  // OPENFILM_<SERVICE>_URL spelling is still read so an existing shell works.
+  const override = process.env[`MISE_${name}_URL`] ?? process.env[`OPENFILM_${name}_URL`];
+  return (override?.trim() || fallback).replace(/\/+$/, '');
 }
 
 async function fetchJson(url, init) {
@@ -521,10 +524,18 @@ function inlinePicture(root, rel) {
   return { inlineData: { mimeType: mime, data: bytes.toString('base64') } };
 }
 
-/** Load one upstream provider adapter by path (it is vendored, not a package). */
+/**
+ * Load one provider adapter from `providers/`, beside this file.
+ *
+ * Agnes and Google Gemini are called inline (see the create path above); the
+ * other services need a small adapter module and none ships yet. The error names
+ * the file it wanted instead of blaming a package that is not here.
+ */
 async function loadAdapter(id) {
-  const file = join(PLUGIN_ROOT, 'vendor', 'node_modules', 'openfilm', 'studio', 'server', 'providers', `${id}.mjs`);
-  if (!existsSync(file)) throw new Error(`the ${id} adapter is missing from the vendored OpenFilm package`);
+  const file = join(PLUGIN_ROOT, 'providers', `${id}.mjs`);
+  if (!existsSync(file)) {
+    throw new Error(`no adapter for ${id}: Agnes and Google Gemini are called directly, and ${id} would need providers/${id}.mjs`);
+  }
   return import(new URL(`file:///${file.replace(/\\/g, '/')}`).href);
 }
 

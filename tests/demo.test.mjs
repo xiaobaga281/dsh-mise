@@ -32,13 +32,13 @@ test('the demo builds a page per beat, a score and a film that references them',
   const demo = tools.find((tool) => tool.name === 'mise_demo');
   assert.ok(demo, 'mise_demo must be registered');
 
-  const base = mkdtempSync(join(tmpdir(), 'openfilm-demo-'));
+  const base = mkdtempSync(join(tmpdir(), 'mise-demo-'));
   const result = await demo.execute({ cwd: base, render: false, seconds: 16 });
   assert.equal(result.ok, true);
   assert.ok(result.pages.length >= 4);
   assert.ok(result.seconds > 10);
 
-  const dir = join(base, 'openfilm-demo');
+  const dir = join(base, 'mise-demo');
   const film = readFileSync(join(dir, 'film.html'), 'utf8');
   const iframes = (film.match(/<iframe/g) ?? []).length;
   assert.equal(iframes, result.pages.length, 'every beat is cut into the film — no silent gaps');
@@ -60,7 +60,7 @@ test('the demo builds a page per beat, a score and a film that references them',
 test('a populated sample folder is not overwritten without force', async () => {
   const tools = await mount();
   const demo = tools.find((tool) => tool.name === 'mise_demo');
-  const base = mkdtempSync(join(tmpdir(), 'openfilm-demo2-'));
+  const base = mkdtempSync(join(tmpdir(), 'mise-demo2-'));
   const first = await demo.execute({ cwd: base, render: false, seconds: 10 });
   assert.equal(first.ok, true);
   const second = await demo.execute({ cwd: base, render: false, seconds: 10 });
@@ -68,6 +68,6 @@ test('a populated sample folder is not overwritten without force', async () => {
   assert.match(second.problems.join(' '), /already exists/);
   const forced = await demo.execute({ cwd: base, render: false, seconds: 10, force: true });
   assert.equal(forced.ok, true);
-  assert.ok(readdirSync(join(base, 'openfilm-demo')).some((name) => name.endsWith('.html')));
+  assert.ok(readdirSync(join(base, 'mise-demo')).some((name) => name.endsWith('.html')));
   rmSync(base, { recursive: true, force: true });
 });

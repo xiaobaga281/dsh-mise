@@ -13,7 +13,7 @@
  * reads the same files and continues. A submission whose result is unknown is
  * parked as `unknown_submission` instead of being sent a second time.
  *
- * @module openfilm-asset-queue
+ * @module mise-asset-queue
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

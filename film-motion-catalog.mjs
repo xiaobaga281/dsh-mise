@@ -1,7 +1,7 @@
 /**
  * The motion catalogue: the patterns a shot page can draw, searchable.
  *
- * OpenFilm pages animate by writing `frame(t)`, which means every film tends to
+ * Shot pages animate by writing `frame(t)`, which means every film tends to
  * invent its own motion from scratch — and invents the same three moves, or the
  * wrong one, each time. FredTalk's idea (MIT) is the fix: a film picks a motion
  * from a known set and can say why, instead of defaulting to a big caption.
@@ -10,7 +10,7 @@
  * brief, or by id. The catalog itself is plain JSON beside the templates, so it
  * can grow without touching code.
  *
- * @module openfilm-motion-catalog
+ * @module mise-motion-catalog
  */
 
 import { readFileSync } from 'node:fs';

@@ -11,7 +11,7 @@
  * `texture` (a picture sits inside a designed frame), `pose` (keyframes for a
  * moving subject), or `none` (pure code).
  *
- * @module openfilm-film-genre
+ * @module mise-film-genre
  */
 
 import { craftNotes } from './film-craft.mjs';

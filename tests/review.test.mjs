@@ -25,7 +25,7 @@ const FACTS = {
 };
 
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), 'openfilm-review-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mise-review-'));
   writeFileSync(join(dir, 'film.html'), '<meta name="viewport" content="width=1920, height=1080"><section><iframe src="s1.html#t=0,4"></iframe></section>');
   writeFileSync(join(dir, 's1.html'), '<script>window.film={duration:4,frame(t){}}</script>');
   return dir;

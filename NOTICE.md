@@ -25,6 +25,11 @@ commands name this plugin's tools, and the prose describes Mise's own renderer.
 The film format itself — `film.html`, tracks, clips, `at`, `#t=in,out`,
 `window.film.frame(t)` — follows the same upstream specification.
 
+Each `skills/<name>/mise.json` keeps a `repository` field pointing at the skill
+it came from, so the provenance of every document stays one click away. Nothing
+else in this repository is derived from that project: the renderer, the meters,
+the score, the checks and the panel are original work.
+
 ## Fonts
 
 Films are drawn with the system font stack (`Noto Sans SC`, `Microsoft YaHei`,

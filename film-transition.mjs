@@ -10,7 +10,7 @@
  * The page has a transparent background on purpose: the track above the picture
  * is composited over it.
  *
- * @module openfilm-film-transition
+ * @module mise-film-transition
  */
 
 export const TRANSITION_KINDS = ['line', 'wipe', 'iris', 'rgb', 'letterbox', 'flash'];

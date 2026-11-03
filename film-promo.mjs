@@ -9,7 +9,7 @@
  *
  * Everything here is deterministic: the same brief produces the same bytes.
  *
- * @module openfilm-film-promo
+ * @module mise-film-promo
  */
 
 export const PROMO_DEFAULTS = {
@@ -343,7 +343,7 @@ function pageHtml({ shot, planned, total, index, count, motion = SKELETON_STYLE.
   <div class="bloom"></div>
   ${body}
   ${phone}
-  <div class="brand">${esc(shot.brand ?? 'OPENFILM').replace(/^(\S+)/, '<b>$1</b>')}</div>
+  <div class="brand">${esc(shot.brand ?? 'MISE').replace(/^(\S+)/, '<b>$1</b>')}</div>
   <div class="idx">${String(index + 1).padStart(2, '0')} / ${String(count).padStart(2, '0')}</div>
   <div class="prog"><i></i></div>
   <div class="sweep"></div>

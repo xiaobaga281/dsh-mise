@@ -11,7 +11,7 @@
  * itself, so this works inside the film's one-page-per-clip model: the host
  * only ever drives this page.
  *
- * @module openfilm-film-duo
+ * @module mise-film-duo
  */
 
 export const DUO_KINDS = ['slide', 'fade', 'wipe', 'push-up', 'depth'];

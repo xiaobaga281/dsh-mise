@@ -9,7 +9,7 @@
  * Everything here is deterministic: the same seed, mood and tempo produce the
  * same samples, so a re-render sounds identical.
  *
- * @module openfilm-film-score
+ * @module mise-film-score
  */
 
 import { writeFileSync } from 'node:fs';

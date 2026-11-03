@@ -8,7 +8,7 @@
  * "layered" tier. A pack is a plain folder with a `pack.json`; installing is a
  * copy plus a hash check, and the doctor only believes a pack that passed it.
  *
- * @module openfilm-film-packs
+ * @module mise-film-packs
  */
 
 import { createHash } from 'node:crypto';
@@ -19,7 +19,7 @@ const MANIFEST = 'pack.json';
 
 /** Where packs live, under the harness home. */
 export function packsRoot(home = process.env.DSH_HOME || process.env.USERPROFILE || process.env.HOME || '') {
-  return join(home, 'openfilm-packs');
+  return join(home, 'mise-packs');
 }
 
 /** A pack's manifest must say what it is; anything else is refused. */
