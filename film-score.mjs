@@ -13,6 +13,7 @@
  */
 
 import { writeFileSync } from 'node:fs';
+import { integratedLoudness } from './film-audio.mjs';
 
 const SAMPLE_RATE = 44100;
 
@@ -409,7 +410,7 @@ export function composeForShots(spec = {}) {
  * @param {ReturnType<typeof composeScore>} score
  * @returns {Buffer}
  */
-export function renderScoreWav(score) {
+export function renderScoreWav(score, options = {}) {
   const sr = score.sampleRate ?? SAMPLE_RATE;
   const frames = Math.ceil(score.seconds * sr) + Math.ceil(sr * 0.4);
   const left = new Float32Array(frames);
@@ -554,10 +555,63 @@ export function renderScoreWav(score) {
     right[i] += roomR[i] * 0.35;
   }
 
-  // Soft clip and normalise to -3 dBFS so the mix stage starts from a sane level.
+  // ── the mix bus ──────────────────────────────────────────────────────────
+  //
+  // Peak-normalising a bed leaves it quiet in loudness terms, because a sparse
+  // arrangement has a high peak and a low average: this score measured −25.9
+  // LUFS, fourteen units under the streaming target, and a platform would turn
+  // it up on playback. So the bus does what a mastering chain does — remove the
+  // sub-30 Hz that phones cannot reproduce, set the level by integrated
+  // loudness (ITU-R BS.1770), and only then fit the peaks under −1 dBTP, the
+  // ceiling EBU R 128 and every streaming platform share.
+  const highpass = (() => {
+    const w0 = (2 * Math.PI * 30) / sr;
+    const alpha = Math.sin(w0) / (2 * 0.7071);
+    const cos = Math.cos(w0);
+    const a0 = 1 + alpha;
+    return {
+      b0: ((1 + cos) / 2) / a0,
+      b1: (-(1 + cos)) / a0,
+      b2: ((1 + cos) / 2) / a0,
+      a1: (-2 * cos) / a0,
+      a2: (1 - alpha) / a0,
+    };
+  })();
+  for (const channel of [left, right]) {
+    let x1 = 0; let x2 = 0; let y1 = 0; let y2 = 0;
+    for (let i = 0; i < frames; i += 1) {
+      const x0 = channel[i];
+      const y0 = highpass.b0 * x0 + highpass.b1 * x1 + highpass.b2 * x2 - highpass.a1 * y1 - highpass.a2 * y2;
+      x2 = x1; x1 = x0; y2 = y1; y1 = y0;
+      channel[i] = y0;
+    }
+  }
+
+  // A sparse arrangement has a high crest factor, so a linear gain big enough to
+  // reach the target would put the peaks through the ceiling and the peak-fit
+  // would undo the gain. A stem is mastered with a limiter instead: gain up,
+  // soft-clip what overshoots, measure again. Two passes land within half a unit
+  // without the pumping a fast compressor would add.
+  const targetLufs = Number(options.targetLufs ?? score.loudnessTarget ?? -18);
+  const ceiling = 0.891; // −1 dBTP
+  const originalLeft = Float32Array.from(left);
+  const originalRight = Float32Array.from(right);
+  let gain = 1;
+  let measured = integratedLoudness([left, right], sr);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const current = measured && Number.isFinite(measured.lufs) ? measured.lufs : targetLufs;
+    const step = Math.pow(10, (targetLufs - current) / 20);
+    gain = Math.max(0.2, Math.min(12, gain * step));
+    for (let i = 0; i < frames; i += 1) {
+      left[i] = Math.tanh((originalLeft[i] * gain) / ceiling) * ceiling;
+      right[i] = Math.tanh((originalRight[i] * gain) / ceiling) * ceiling;
+    }
+    measured = integratedLoudness([left, right], sr);
+    if (measured && Math.abs(measured.lufs - targetLufs) < 0.5) break;
+  }
   let peak = 0;
   for (let i = 0; i < frames; i += 1) peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
-  const scale = peak > 0 ? 0.7 / peak : 1;
+  const scale = peak > ceiling ? ceiling / peak : 1;
 
   const buffer = Buffer.alloc(44 + frames * 4);
   buffer.write('RIFF', 0);
@@ -580,6 +634,67 @@ export function renderScoreWav(score) {
     buffer.writeInt16LE(Math.round(r * 32767), 46 + i * 4);
   }
   return buffer;
+}
+
+/**
+ * What a composer would check before calling the cue finished.
+ *
+ * Three things, all measurable and none of them a matter of taste:
+ *  - do the cuts land on the score's own grid? A cut 180 ms off the beat reads
+ *    as a mistake, and the planner already claims to snap them;
+ *  - is the tempo related to how long the shots are? One beat every 1.5 s under
+ *    six-second shots is three beats a shot, which is a heartbeat, not an edit;
+ *  - is the harmony actually moving, or is it one chord with a pulse?
+ *
+ * @param {{ bpm: number, shots?: Array<{ at: number, length: number }>, notes?: Array<object>, chords?: string[] }} score
+ */
+export function auditScore(score) {
+  const bpm = Number(score?.bpm ?? 0);
+  const beat = bpm > 0 ? 60 / bpm : 0;
+  const shots = Array.isArray(score?.shots) ? score.shots : [];
+  const cuts = shots.slice(1).map((shot) => Number(shot.at)).filter((value) => Number.isFinite(value));
+  const notes = [];
+  let alignment = null;
+  if (beat > 0 && cuts.length) {
+    const offsets = cuts.map((cut) => {
+      // Snap to the nearest eighth of a beat: that is the finest grid the
+      // planner uses, so anything further off than half of it is audible.
+      const step = beat / 2;
+      const nearest = Math.round(cut / step) * step;
+      return Math.abs(cut - nearest) * 1000;
+    });
+    alignment = {
+      meanMs: Number((offsets.reduce((a, b) => a + b, 0) / offsets.length).toFixed(0)),
+      worstMs: Number(Math.max(...offsets).toFixed(0)),
+    };
+    if (alignment.worstMs > 60) notes.push(`${alignment.worstMs} ms is the worst cut off the half-beat grid; the ear hears that as a late cut`);
+  }
+  const asl = shots.length ? shots.reduce((sum, shot) => sum + Number(shot.length ?? 0), 0) / shots.length : null;
+  const beatsPerShot = asl && beat > 0 ? asl / beat : null;
+  if (beatsPerShot !== null && (beatsPerShot < 2 || beatsPerShot > 16)) {
+    notes.push(`${beatsPerShot.toFixed(1)} beats per shot at ${bpm} bpm — a bed that sparse (or that busy) stops relating to the cutting`);
+  }
+  const chordNotes = (score?.notes ?? []).filter((note) => note.voice === 'pad');
+  const chords = [];
+  for (const note of chordNotes) {
+    const at = Number(note.at);
+    const key = at.toFixed(2);
+    const existing = chords.find((chord) => chord.key === key);
+    if (existing) existing.notes.push(note.midi);
+    else chords.push({ key, notes: [note.midi] });
+  }
+  const signature = chords.map((chord) => chord.notes.sort((a, b) => a - b).join(','));
+  const variety = signature.length ? new Set(signature).size / signature.length : 0;
+  if (variety < 0.5 && signature.length >= 4) notes.push(`only ${(variety * 100).toFixed(0)}% of the bars change chord — a loop, not a progression`);
+  return {
+    bpm,
+    beat: Number(beat.toFixed(3)),
+    beatsPerShot: beatsPerShot === null ? null : Number(beatsPerShot.toFixed(1)),
+    alignment,
+    chords: signature.length,
+    chordVariety: Number(variety.toFixed(2)),
+    notes,
+  };
 }
 
 /** Write a score to a WAV file and return what was written. */

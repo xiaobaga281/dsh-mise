@@ -124,6 +124,9 @@ export function planGrade(spec = {}, env = {}) {
     filter,
     args: ['-y', '-hide_banner', '-loglevel', 'error', '-i', spec.input, '-vf', filter,
       '-c:v', 'libx264', '-preset', 'slow', '-crf', String(Number.isFinite(crf) ? crf : 17), '-pix_fmt', 'yuv420p',
+      // Tag the delivery: a file whose range is unstated is a file every player
+      // has to guess about, and one of the guesses crushes the blacks.
+      '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
       ...audio, spec.output],
   };
 }

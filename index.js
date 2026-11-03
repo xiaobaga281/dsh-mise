@@ -49,14 +49,16 @@ import { planDepth, planInterpolation } from './film-interpolate.mjs';
 import { buildDepthPage, validateDepthSpec } from './film-depth.mjs';
 import { buildMorphPage, keyframeTimes, validateMorphSpec } from './film-keyframes.mjs';
 import { SCENE_MOVES, SCENE_PALETTES, buildScenePage, validateSceneSpec } from './film-scene.mjs';
-import { TYPE_MOTIONS, TYPE_PALETTES, buildTypePage, validateTypeSpec } from './film-type.mjs';
+import { TYPE_ASPECTS, TYPE_LAYOUTS, TYPE_MOTIFS, TYPE_MOTIONS, TYPE_PALETTES, TYPE_ROLES, buildTypePage, validateTypeSpec } from './film-type.mjs';
 import { GRAPHICS_MODES, buildGraphicsPage, validateGraphicsSpec } from './film-graphics.mjs';
 import { TRANSITION_COLORS, TRANSITION_KINDS, buildTransitionPage, validateTransitionSpec } from './film-transition.mjs';
 import { DUO_KINDS, buildDuoPage, validateDuoSpec } from './film-duo.mjs';
 import { GRADE_PRESETS, loudnessReason, planGrade, targetLufs } from './film-grade.mjs';
-import { SCORE_KEYS, SCORE_MOODS, composeForShots, composeScore, renderScoreWav, validateScoreSpec } from './film-score.mjs';
+import { probePage } from './film-probe.mjs';
+import { describeFrame, profileFrames } from './film-vision.mjs';
+import { SCORE_KEYS, SCORE_MOODS, auditScore, composeForShots, composeScore, renderScoreWav, validateScoreSpec } from './film-score.mjs';
 import { planMix } from './film-mix.mjs';
-import { envelopeForPage, wavEnvelope, speechRegions } from './film-audio.mjs';
+import { auditAudio, envelopeForPage, wavEnvelope, speechRegions } from './film-audio.mjs';
 import { GENRES, planProduction, validateGenre } from './film-genres.mjs';
 import { buildPromo, proposePromo } from './film-promo.mjs';
 import { buildBleedPage, decodePng, inkGrid, placeCopy, buildTextPage, buildFigurePage, buildChartPage } from './film-compose.mjs';
@@ -820,8 +822,34 @@ async function runOpenfilm(args, options = {}) {
       if (range && /^\d+(\.\d+)?-\d+(\.\d+)?$/.test(range)) {
         return fail('range renders were provided by the vendored runtime; use mise_render and cut the file with ffmpeg');
       }
-      const result = await renderFilm({ projectDir: projectPath, ...(range && /^\d/.test(range) ? {} : {}) });
-      return ok(`→ ${relative(projectPath, result.out)}\n${result.frames} frames · ${result.seconds}s`);
+      // The flags were documented long before they were read: `--fps 60` and
+      // `--4k` used to be silently dropped and every film came out at 30 fps,
+      // 1080p. A flag that does nothing is worse than no flag.
+      const flagValue = (name) => {
+        const at = rest.indexOf(name);
+        const next = at >= 0 ? rest[at + 1] : undefined;
+        return typeof next === 'string' && !next.startsWith('--') ? next : undefined;
+      };
+      const askedFps = Number(flagValue('--fps'));
+      const askedSs = Number(flagValue('--ss'));
+      const outFlag = flagValue('--out');
+      const fourK = rest.includes('--4k');
+      const blur = rest.includes('--blur');
+      const alpha = rest.includes('--alpha');
+      const width = fourK ? 3840 : 1920;
+      const height = fourK ? 2160 : 1080;
+      const result = await renderFilm({
+        projectDir: projectPath,
+        width,
+        height,
+        ...(Number.isFinite(askedFps) && askedFps > 0 ? { fps: Math.round(askedFps) } : {}),
+        ...(Number.isFinite(askedSs) && askedSs > 0 ? { supersample: Math.round(askedSs) } : {}),
+        ...(blur ? { motionBlur: true } : {}),
+        ...(outFlag ? { out: resolve(cwd, outFlag) } : {}),
+      });
+      const notes = [`${result.frames} frames · ${result.seconds}s · ${width}×${height}${result.supersample > 1 ? ` (${result.supersample}× supersampled)` : ''}${result.motionBlur ? ' · shutter' : ''}`];
+      if (alpha) notes.push('alpha: this encoder writes H.264 without an alpha channel — transparent delivery is not implemented');
+      return ok(`→ ${relative(projectPath, result.out)}\n${notes.join('\n')}`);
     }
 
     if (command === 'look') {
@@ -1527,18 +1555,28 @@ function describePreview(projectPath) {
  */
 function copyMotionKit(projectPath) {
   if (!projectPath) return;
+  // Two files, one vocabulary: of-motion is the motion maths the format shipped
+  // with, mise-kit is the page-side floor built on it (grid, type scale, colour
+  // contrast, reveals, camera, grain, defineShot). A page importing the kit
+  // needs both, so they are copied together and versioned independently.
+  copyVendored(projectPath, ['vendor', 'motion', 'of-motion.mjs'], 'of-motion.mjs', /^ \* @of-motion v(\S+)/m);
+  copyVendored(projectPath, ['vendor', 'motion', 'mise-kit.mjs'], 'mise-kit.mjs', /^ \* @mise-kit v(\S+)/m);
+  copyRiveRuntime(projectPath);
+}
+
+/** Copy one vendored runtime into the project when it is missing or stale. */
+function copyVendored(projectPath, sourceParts, targetName, marker) {
   try {
-    const source = join(PLUGIN_ROOT, 'vendor', 'motion', 'of-motion.mjs');
+    const source = join(PLUGIN_ROOT, ...sourceParts);
     if (!existsSync(source)) return;
-    const target = join(projectPath, 'of-motion.mjs');
-    const marker = (text) => (/^ \* @of-motion v(\S+)/m.exec(text)?.[1] ?? null);
-    const wanted = marker(readFileSync(source, 'utf8'));
-    if (!(existsSync(target) && marker(readFileSync(target, 'utf8')) === wanted)) {
+    const target = join(projectPath, targetName);
+    const version = (text) => marker.exec(text)?.[1] ?? null;
+    const wanted = version(readFileSync(source, 'utf8'));
+    if (!existsSync(target) || version(readFileSync(target, 'utf8')) !== wanted) {
       mkdirSync(projectPath, { recursive: true });
       writeFileSync(target, readFileSync(source));
     }
   } catch {}
-  copyRiveRuntime(projectPath);
 }
 
 /**
@@ -2191,7 +2229,7 @@ function buildRunTool(ctx) {
       'Run one OpenFilm command in the film project. Commands: ' +
       '"open" [folder|GitHub url] — create/open a project (optional: the panel does not need it); ' +
       '"look" [what] [t | a-b] — check the film and draw it: PNG contact sheets under .film/cache/look/ (paths are printed); ' +
-      '"render" [a-b] [--out file] [--fps n] [--4k] [--blur] [--alpha] — the MP4 beside film.html; ' +
+      '"render" [--out file] [--fps n] [--ss n] [--4k] [--blur] — the MP4 beside film.html (default 1080p, rasterised at 2× and scaled down); ' +
       '"get" [what] [--options] — voice-over, music, sound effects, transcripts, images from the person\'s connected services (run alone to list what is connected); ' +
       '"capture" <url> <file.png> [--full] [--size WxH] [--selector css] — a picture of a live web page; ' +
       '"skills" / "skill" <name> — list or print the official filmmaking skills; ' +
@@ -3119,7 +3157,8 @@ function buildTypeTool(ctx) {
     description:
       'Write a typographic shot: headline type that rises through a mask, tracks in, blurs in or lands word by word, with a light sweep, rules and grain. ' +
       'This is where code video beats generative video outright — exact kerning and a mask line that moves with the type at any frame rate. ' +
-      'Use it for openings, chapter cards, claims and end cards.',
+      'Use it for openings, chapter cards, claims and end cards. ' +
+      'It places the block of type on a real grid: pass `layout` (center / editorial / right / lower / corner) and `motif` so a run of title shots does not put the same weight in the same corner every time — that repetition is the difference between a sequence and a template.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -3136,10 +3175,16 @@ function buildTypeTool(ctx) {
               text: { type: 'string' },
               size: { type: 'number', description: 'px; default 118 for line 1, 46 otherwise.' },
               kicker: { type: 'string', description: 'Small uppercase label above the line.' },
+              role: { type: 'string', enum: TYPE_ROLES, description: 'Where the line sits in the hierarchy: eyebrow, main, sub or note. Size and weight follow from it, so a title shot reads as designed rather than as "first line big".' },
             },
             required: ['text'],
           },
         },
+        layout: { type: 'string', enum: TYPE_LAYOUTS, description: 'Where the block of type sits: center, editorial (second column, left), right, lower or corner. Four title shots in the same place are read as a template by the third one — vary it deliberately.' },
+        motif: { type: 'string', enum: TYPE_MOTIFS, description: 'The abstract geometry drawn on the open side of the frame: horizon, orbit, speed, lattice or none. Default: horizon on editorial, orbit otherwise.' },
+        inset: { type: 'number', description: 'px kept clear at the top and bottom for letterbox bars (default 0). Pass the delivery bars here so the type never ships clipped.' },
+        warmth: { type: 'number', description: '-1 (cool) .. 1 (warm): this shot\'s own white point. Default derives from the shot index, which is what stops a film sitting at one temperature.' },
+        aspect: { type: 'string', enum: TYPE_ASPECTS, description: 'Frame shape the grid is laid out for (default 16:9).' },
         motion: { type: 'string', description: `One of: ${TYPE_MOTIONS.join(', ')}. Default mask-rise.` },
         palette: { type: 'string', description: `One of: ${Object.keys(TYPE_PALETTES).join(', ')}. Default amber.` },
         duration: { type: 'number', description: 'Seconds (default 4).' },
@@ -3164,9 +3209,15 @@ function buildTypeTool(ctx) {
           text: String(line?.text ?? ''),
           ...(line?.size !== undefined ? { size: Number(line.size) } : {}),
           ...(typeof line?.kicker === 'string' && line.kicker ? { kicker: line.kicker } : {}),
+          ...(typeof line?.role === 'string' && line.role ? { role: line.role } : {}),
         })) : [],
         ...(typeof args?.motion === 'string' && args.motion ? { motion: args.motion } : {}),
         ...(typeof args?.palette === 'string' && args.palette ? { palette: args.palette } : {}),
+        ...(typeof args?.layout === 'string' && args.layout ? { layout: args.layout } : {}),
+        ...(typeof args?.motif === 'string' && args.motif ? { motif: args.motif } : {}),
+        ...(typeof args?.aspect === 'string' && args.aspect ? { aspect: args.aspect } : {}),
+        ...(args?.inset !== undefined ? { inset: Number(args.inset) } : {}),
+        ...(args?.warmth !== undefined ? { warmth: Number(args.warmth) } : {}),
         ...(args?.duration !== undefined ? { duration: Number(args.duration) } : {}),
         ...(args?.stagger !== undefined ? { stagger: Number(args.stagger) } : {}),
         ...(typeof args?.align === 'string' ? { align: args.align === 'left' ? 'left' : 'center' } : {}),
@@ -3178,7 +3229,7 @@ function buildTypeTool(ctx) {
       const relative = `${name}.html`;
       if (existsSync(join(projectPath, relative)) && args?.force !== true) return { ok: false, problems: [`${relative} already exists; pass force to replace it`] };
       writeFileSync(join(projectPath, relative), buildTypePage(spec), 'utf8');
-      return { ok: true, relative, lines: spec.lines.length, motion: spec.motion ?? 'mask-rise', duration: Number(spec.duration ?? 4), snippet: `<iframe src="${relative}#t=0,${Number(spec.duration ?? 4)}"></iframe>` };
+      return { ok: true, relative, lines: spec.lines.length, motion: spec.motion ?? 'mask-rise', layout: spec.layout ?? 'center', motif: spec.motif ?? (spec.layout === 'editorial' ? 'horizon' : 'orbit'), duration: Number(spec.duration ?? 4), snippet: `<iframe src="${relative}#t=0,${Number(spec.duration ?? 4)}"></iframe>` };
     },
     isConcurrencySafe: () => false,
   };
@@ -3853,7 +3904,8 @@ function buildDemoTool(ctx) {
     name: 'mise_demo',
     description:
       'Build a complete sample film from the engine itself — plan, pages, cut-aligned score, film.html — and optionally render it, so a new installation can prove the whole chain on the spot. ' +
-      'No pictures and no models: every frame is drawn by code. Use it to sanity-check a machine, to show what the plugin can do, or as the starting skeleton of a real film.',
+      'No pictures and no models: every frame is drawn by code. Use it to sanity-check a machine or to show what the plugin can do. ' +
+      'The copy is fixed on purpose: a real film is built from mise_plan and mise_type / mise_scene / mise_graphics with its own words and its own layout, not by editing this sample — editing it is how every film ends up the same film with different captions.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -3914,21 +3966,45 @@ function buildDemoTool(ctx) {
       let previousSpot = null;
       const chosenLayouts = [];
       /**
-       * Which layout to use for this text shot: the one whose centre of weight is
-       * farthest from the previous shot's. A film whose shots alternate sides
-       * reads as edited; one that advances down a list reads as a template.
+       * Which layout to use for this text shot.
+       *
+       * This used to be "the one farthest from the previous shot", which sounds
+       * like editing and is in fact a two-cycle: from a corner the farthest
+       * layout is the opposite corner, and from that one it is the first again,
+       * so a ten-shot film alternated editorial → corner → editorial → corner.
+       * A deck is the fix: every layout plays once before any plays twice, and
+       * the order is shuffled per film so two films do not share a sequence.
        */
-      const chooseLayout = (index) => {
-        const candidates = ['editorial', 'right', 'lower', 'corner'];
-        if (index === 0 || !previousSpot) return 'editorial';
-        let best = candidates[0];
-        let bestDistance = -1;
-        for (const layout of candidates) {
-          const spot = LAYOUT_CENTROID[layout];
-          const distance = Math.hypot(spot.x - previousSpot.x, spot.y - previousSpot.y);
-          if (distance > bestDistance) { bestDistance = distance; best = layout; }
+      const seededShuffle = (list, seed) => {
+        const out = [...list];
+        let state = (Math.round(Number(seed) || 1) >>> 0) || 1;
+        for (let i = out.length - 1; i > 0; i -= 1) {
+          state = (state * 1664525 + 1013904223) >>> 0;
+          const j = state % (i + 1);
+          const swap = out[i];
+          out[i] = out[j];
+          out[j] = swap;
         }
-        return best;
+        return out;
+      };
+      const LAYOUT_SEED = Math.round(Number(plan.seconds ?? 16) * 97 + plan.beats.length * 31);
+      let layoutDeck = ['editorial', ...seededShuffle(['right', 'lower', 'corner'], LAYOUT_SEED)];
+      let deckCursor = 0;
+      const chooseLayout = () => {
+        if (deckCursor >= layoutDeck.length) {
+          const last = layoutDeck[layoutDeck.length - 1];
+          let next = layoutDeck;
+          let guard = 0;
+          do {
+            next = seededShuffle(['editorial', 'right', 'lower', 'corner'], LAYOUT_SEED + (deckCursor + 1) * 17 + guard);
+            guard += 1;
+          } while (next[0] === last && guard < 8);
+          layoutDeck = next;
+          deckCursor = 0;
+        }
+        const picked = layoutDeck[deckCursor];
+        deckCursor += 1;
+        return picked;
       };
       plan.beats.forEach((beat, index) => {
         const copy = demoCopy(beat.kind, index, subject);
@@ -3944,7 +4020,7 @@ function buildDemoTool(ctx) {
         // caption, and a frame number. It is what turns a panel floating in a
         // void into a shot of a film.
         const TITLE_LAYOUTS = ['editorial', 'right', 'lower', 'corner'];
-        const titleLayout = chooseLayout(index);
+        const titleLayout = chooseLayout();
         const inset = Math.round(Number(plan?.grade?.letterbox ?? 0) * 1080);
         const furniture = {
           inset,
@@ -3955,7 +4031,7 @@ function buildDemoTool(ctx) {
         };
         const warmth = shotWarmth(index);
         if (Array.isArray(copy.lines)) {
-          html = buildTypePage({ lines: copy.lines, warmth, motion: plan.type.motion, palette: plan.type.palette, duration: beat.length, sweep: plan.type.sweep, aspect: plan.aspect, layout: titleLayout, inset });
+          html = buildTypePage({ lines: copy.lines, warmth, motion: plan.type.motion, palette: plan.type.palette, duration: beat.length, sweep: plan.type.sweep, aspect: plan.aspect, layout: titleLayout, inset, motif: ['horizon', 'orbit', 'speed', 'lattice'][index % 4] });
         } else if (Array.isArray(copy.panels)) {
           html = buildScenePage({ panels: copy.panels, move: sceneMoveFor(beat.move ?? copy.move), palette: 'amber', duration: beat.length, warmth, ...furniture });
         } else if (chartCopy) {
@@ -4161,12 +4237,18 @@ const VERIFY_OUTPUT_SCHEMA = {
             properties: { x: { type: 'number' }, y: { type: 'number' } },
             required: ['x', 'y'],
           },
+          vision: { type: 'object', additionalProperties: true, description: 'What the frame looks like: palette, tone, colour, composition. Measured, not judged.' },
           problems: { type: 'array', items: { type: 'string' } },
         },
         required: ['t', 'coverage', 'problems'],
       },
     },
     problems: { type: 'array', items: { type: 'string' } },
+    look: {
+      type: 'object',
+      additionalProperties: true,
+      description: 'The film measured against itself: its palette and median tone, each shot\'s distance from the rest, and the shots that leave the film\'s own look.',
+    },
     motion: {
       type: 'array',
       description: 'Present on action=motion: one row per moving shot.',
@@ -4265,6 +4347,13 @@ function renderVerifyOutput(_args, value) {
     lines.push(`  continuity: ${value.continuity.ok ? 'shots look like one film' : `${value.continuity.problems.length} jump(s)`}`);
     for (const problem of value.continuity.problems) lines.push(`     - ${problem}`);
   }
+  if (value.look) {
+    const palette = (value.look.palette ?? []).map((entry) => entry.hex).join(' ');
+    lines.push(`  look: ${palette}`);
+    const ref = value.look.reference ?? {};
+    lines.push(`        median ${ref.median} · contrast ${ref.contrast} · chroma ${ref.saturation} · warmth ${ref.warmth} · spread ${value.look.spread?.palette}`);
+    if (value.look.outliers?.length) lines.push(`        ${value.look.outliers.join('s, ')}s sit away from the film's own look — check that it is on purpose`);
+  }
   return [{ type: 'text', text: lines.join('\n') }];
 }
 
@@ -4305,6 +4394,26 @@ function grayFromPng(file) {
 }
 
 /**
+ * One rendered PNG as both colour and grey, so the look can be described.
+ *
+ * Same ffmpeg route as grayFromPng, asked for rgb24 instead of gray: the grey
+ * plane is derived from it, so nothing is decoded twice.
+ */
+function rgbFromPng(file) {
+  const probe = spawnSync(toolPath('ffprobe'), ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file], { encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+  const [width, height] = String(probe.stdout ?? '').trim().split(',').map(Number);
+  if (!width || !height) return null;
+  const raw = spawnSync(toolPath('ffmpeg'), ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { windowsHide: true, timeout: 60_000, maxBuffer: width * height * 3 + 1024 });
+  if (raw.status !== 0 || !raw.stdout || raw.stdout.length < width * height * 3) return null;
+  const rgb = new Uint8Array(raw.stdout.buffer, raw.stdout.byteOffset, width * height * 3);
+  const gray = new Uint8Array(width * height);
+  for (let i = 0, at = 0; i < gray.length; i += 1, at += 3) {
+    gray[i] = Math.round(0.299 * rgb[at] + 0.587 * rgb[at + 1] + 0.114 * rgb[at + 2]);
+  }
+  return { rgb, gray, width, height };
+}
+
+/**
  * Stitch the checked frames into one picture beside the film.
  *
  * A coverage number says "something was drawn"; a contact sheet says *what* was
@@ -4333,6 +4442,118 @@ function buildContactSheet(files, outPath) {
 
   const run = spawnSync(toolPath('ffmpeg'), ['-y', '-hide_banner', '-loglevel', 'error', ...inputs, '-filter_complex', chain, '-frames:v', '1', outPath], { encoding: 'utf8', windowsHide: true, timeout: 120_000 });
   return run.status === 0 && existsSync(outPath) ? outPath : null;
+}
+
+/** ── Probe: measure one page before it becomes a render ─────────────────── */
+
+const PROBE_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    ok: { type: 'boolean' },
+    page: { type: 'string' },
+    width: { type: 'number' },
+    height: { type: 'number' },
+    duration: { type: 'number' },
+    frames: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    purity: { type: 'object', additionalProperties: true },
+    look: { type: 'object', additionalProperties: true },
+    motion: { type: 'object', additionalProperties: true },
+    reference: { type: 'object', additionalProperties: true },
+    errors: { type: 'array', items: { type: 'string' } },
+    problems: { type: 'array', items: { type: 'string' } },
+    warnings: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['ok'],
+};
+
+function renderProbeOutput(_args, value) {
+  const lines = [];
+  if (!value?.page) {
+    lines.push('probe could not run:');
+    for (const problem of value?.problems ?? []) lines.push(`  - ${problem}`);
+    return [{ type: 'text', text: lines.join('\n') }];
+  }
+  lines.push(`probe: ${value.page} — ${(value.frames ?? []).length} frames of ${value.duration}s at ${value.width}×${value.height}`);
+  for (const frame of value.frames ?? []) {
+    if (frame.problems) { lines.push(`  ${frame.t}s  ${frame.problems.join('; ')}`); continue; }
+    const bits = [`ink ${frame.coverage}%`, `type ${frame.minFont}px`, `contrast ${frame.contrast}:1`];
+    if (frame.delta !== undefined) bits.push(`Δ ${frame.delta}`);
+    const palette = (frame.vision?.palette ?? []).slice(0, 3).map((entry) => `${entry.hex} ${Math.round(entry.share * 100)}%`).join(' ');
+    if (palette) bits.push(palette);
+    lines.push(`  ${frame.t}s  ${bits.join(' · ')}`);
+  }
+  if (value.look) {
+    const palette = (value.look.palette ?? []).map((entry) => entry.hex).join(' ');
+    const ref = value.look.reference ?? {};
+    lines.push(`look  ${palette}`);
+    lines.push(`      tone median ${ref.median} · contrast ${ref.contrast} · saturation ${ref.saturation} · warmth ${ref.warmth} · palette spread ${value.look.spread?.palette} · tone spread ${value.look.spread?.median}`);
+    if (value.look.outliers?.length) lines.push(`      shots away from the page's own look: ${value.look.outliers.join('s, ')}s — intentional or not, they are the ones to look at`);
+  }
+  if (value.motion?.curve) {
+    const m = value.motion;
+    lines.push(`motion  ${m.kind} · ${m.curve.trend} · speeds ${m.curve.speeds.join(' / ')} · smoothness ${m.curve.smoothness}`);
+    const shift = m.pairs.find((pair) => pair.shift && pair.shift.confidence > 0.25)?.shift;
+    if (shift) lines.push(`        global shift ${shift.x}px, ${shift.y}px (confidence ${shift.confidence})`);
+    else lines.push('        no global shift — whatever moves here moves inside the frame');
+  }
+  if (value.reference) {
+    const c = value.reference.compare ?? {};
+    lines.push(`reference ${value.reference.file}: palette Δ ${c.palette} · median Δ ${c.medianLuma} · contrast Δ ${c.contrast} · saturation Δ ${c.saturation} · warmth Δ ${c.warmth}`);
+  }
+  if (value.problems?.length) {
+    lines.push('problems:');
+    for (const problem of value.problems) lines.push(`  - ${problem}`);
+  }
+  if (value.warnings?.length) {
+    lines.push('warnings:');
+    for (const warning of value.warnings) lines.push(`  - ${warning}`);
+  }
+  if (!value.problems?.length && !value.warnings?.length) {
+    lines.push('clean: reproducible, readable, and inside the frame at every probed time.');
+  }
+  return [{ type: 'text', text: lines.join('\n') }];
+}
+
+function buildProbeTool(ctx) {
+  return {
+    name: 'mise_probe',
+    description:
+      'Measure one shot page in the renderer\'s own headless browser, without rendering: it draws the page at several times and reports what a viewer would get — ' +
+      'whether frame(t) is really a pure function of t (it draws the same t twice and compares pixels), the contrast of every line of type against what is actually behind it, ' +
+      'type too small to read, elements that leave the frame, images that failed, and whether the shot moves at all. ' +
+      'It also holds the frame to published numbers: title safe 90% (EBU R95), 4.5:1 for body text and 3:1 for large (WCAG 1.4.3), 40 CJK or 80 Latin characters a line (WCAG 1.4.8), and 20 characters a second for anything up for the whole shot (Netflix TTSG). Every finding names the number it broke, so an exception can be deliberate. ' +
+      'Write a page, probe it, fix what it names, probe again: this is the loop that turns an improvised page into a finished shot, and it takes seconds instead of a render.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        cwd: { type: 'string', description: 'The film project; defaults to the session working directory.' },
+        page: { type: 'string', description: 'The page to probe, relative to the project (default: the first shot in film.html).' },
+        times: { type: 'array', items: { type: 'number' }, description: 'Times to draw, in seconds. Default: four points through the shot (15%, 40%, 65%, 90%).' },
+        reference: { type: 'string', description: 'A PNG in the project to compare the frame against — a mood board, a brand frame, an earlier shot. The report returns the distance in palette, tone, contrast, saturation and warmth, so "make it look like this" becomes a number.' },
+        width: { type: 'number', description: 'Stage width to probe at (default 1920).' },
+        height: { type: 'number', description: 'Stage height (default 1080).' },
+      },
+    },
+    output: { schema: PROBE_OUTPUT_SCHEMA, render: renderProbeOutput },
+    presentCall: (args) => ({ card: 'generic', title: `Probe ${args?.page ?? 'shot'}`, kind: 'read', rawInput: args?.page ?? 'first shot' }),
+    async execute(args, exec) {
+      const cwd = typeof args?.cwd === 'string' && args.cwd.length > 0 ? args.cwd : await sessionCwd(ctx);
+      const projectPath = resolveProjectFrom(cwd);
+      if (!projectPath) throw new Error(`mise_probe: no film project around ${cwd} (no film.html found).`);
+      void exec;
+      return probePage({
+        projectDir: projectPath,
+        ...(typeof args?.page === 'string' && args.page ? { page: args.page } : {}),
+        ...(Array.isArray(args?.times) && args.times.length ? { times: args.times.map(Number) } : {}),
+        ...(typeof args?.reference === 'string' && args.reference ? { reference: args.reference } : {}),
+        ...(args?.width !== undefined ? { width: Number(args.width) } : {}),
+        ...(args?.height !== undefined ? { height: Number(args.height) } : {}),
+      });
+    },
+    isConcurrencySafe: () => true,
+  };
 }
 
 function buildVerifyTool(ctx) {
@@ -4448,7 +4669,7 @@ function buildVerifyTool(ctx) {
           frames.push({ t, coverage: 0, contrast: 0, mean: 0, margins: null, problems: [`could not draw ${t}s: ${(run.stderr || run.stdout || 'no picture').slice(0, 200)}`] });
           continue;
         }
-        const decoded = grayFromPng(drawn.file);
+        const decoded = rgbFromPng(drawn.file);
         if (!decoded) {
           frames.push({ t, coverage: 0, contrast: 0, mean: 0, margins: null, problems: ['could not read the drawn frame'] });
           continue;
@@ -4477,6 +4698,7 @@ function buildVerifyTool(ctx) {
           kind: beat?.kind ?? '',
           whitespace: report.whitespace ?? 0,
           centroid: report.centroid ?? { x: 0, y: 0 },
+          vision: decoded.rgb ? describeFrame({ rgb: decoded.rgb, gray: decoded.gray, width: decoded.width, height: decoded.height }) : null,
           problems,
         });
       }
@@ -4492,6 +4714,11 @@ function buildVerifyTool(ctx) {
       // Repetition: neighbouring shots that differ in nothing are a slideshow,
       // however well each frame passes on its own.
       const variety = frames.length >= 2 ? varietyReport(frames) : null;
+      // The film measured against itself: no style is imposed, the film's own
+      // median tone and palette become the reference and the shots that leave it
+      // are named. This is the check that works on a night sea and on a white
+      // product page without being told which one it is looking at.
+      const look = profileFrames(frames.map((frame) => ({ t: frame.t, vision: frame.vision })));
 
       // One picture of the frames that were judged, beside the film.
       mkdirSync(join(projectPath, '.film'), { recursive: true });
@@ -4530,6 +4757,7 @@ function buildVerifyTool(ctx) {
         ...(motionMode ? { motion } : {}),
         ...(continuity ? { continuity } : {}),
         ...(variety ? { variety } : {}),
+        ...(look ? { look } : {}),
         relative: '.film/verify.json',
         contactSheet,
       };
@@ -4753,6 +4981,8 @@ const SCORE_OUTPUT_SCHEMA = {
     bpm: { type: 'number' },
     bytes: { type: 'integer' },
     cutPoints: { type: 'array', items: { type: 'number' }, description: 'With align=cuts: the shot starts each chord change landed on.' },
+    structure: { type: 'object', additionalProperties: true, description: 'The cue as a composer would check it: cut alignment in ms, beats per shot, chord variety.' },
+    audio: { type: 'object', additionalProperties: true, description: 'The file as a delivery spec would check it: LUFS, true peak, loudness range, band shares.' },
     intensities: { type: 'array', items: { type: 'number' }, description: 'With align=cuts: the loudness each shot was given (0..1).' },
     dynamics: { type: 'string', description: 'auto or flat.' },
     problems: { type: 'array', items: { type: 'string' } },
@@ -4817,9 +5047,11 @@ function buildScoreTool(ctx) {
       mkdirSync(join(projectPath, 'assets'), { recursive: true });
 
       let score;
+      let auditShots = null;
       if (args?.align === 'cuts') {
         // Cut to the picture: one chord per shot, its change exactly on the cut.
         const shots = shotsFromFacts(checkFilm(projectPath).facts).map((shot) => ({ at: shot.at, length: shot.length }));
+        auditShots = shots;
         // When the film was planned, its half-beat grid comes along: the score
         // then lands on the same grid the cuts were snapped to.
         let grid = 0;
@@ -4849,11 +5081,18 @@ function buildScoreTool(ctx) {
       } else {
         score = composeScore(spec);
       }
-      const bytes = renderScoreWav(score);
+      const bytes = renderScoreWav(score, { targetLufs: -18 });
       writeFileSync(join(projectPath, relative), bytes);
+      // Two receipts: what the cue is made of (cuts on the grid, tempo against
+      // the shot lengths, harmony that moves) and what the file measures
+      // (loudness, ceiling, loudness range, where the energy sits).
+      const structure = auditScore({ ...score, ...(auditShots ? { shots: auditShots } : {}) });
+      const audio = auditAudio(bytes, { targetLufs: -18 });
       return {
         ok: true,
         relative,
+        structure,
+        audio,
         seconds: score.seconds,
         notes: score.notes.length,
         mood: score.mood,
@@ -5780,6 +6019,8 @@ const MISE_RENDER_OUTPUT_SCHEMA = {
     seconds: { type: 'number' },
     clips: { type: 'number' },
     audio: { type: 'number' },
+    supersample: { type: 'number' },
+    motionBlur: { type: 'boolean' },
   },
   required: ['ok', 'problems'],
 };
@@ -5793,6 +6034,7 @@ function renderMiseOutput(value) {
   }
   lines.push(`rendered ${value.out}`);
   lines.push(`${value.frames} frames · ${value.seconds}s · ${value.clips} clips · ${value.audio} audio track(s)`);
+  if (Number(value.supersample) > 1) lines.push(`sampled at ${value.supersample}× and scaled down${value.motionBlur ? ', with a 2-sample shutter' : ''}`);
   return [{ type: 'text', text: lines.join('\n') }];
 }
 
@@ -5812,6 +6054,8 @@ function buildMiseRenderTool(ctx) {
         fps: { type: 'number', description: 'Frame rate (default 30).' },
         width: { type: 'number', description: 'Frame width (default 1920).' },
         height: { type: 'number', description: 'Frame height (default 1080).' },
+        supersample: { type: 'number', description: '1..3: rasterise at this multiple of the delivery size and scale down (default 2). 1 is faster and slightly softer; 2 is what makes hairlines and small type clean.' },
+        motionBlur: { type: 'boolean', description: 'Average two samples per frame into one (a real shutter, default false). Correct for fast camera moves; doubles render time and softens hard cuts.' },
       },
     },
     output: { schema: MISE_RENDER_OUTPUT_SCHEMA, render: renderMiseOutput },
@@ -5827,6 +6071,8 @@ function buildMiseRenderTool(ctx) {
           ...(args?.fps !== undefined ? { fps: Number(args.fps) } : {}),
           ...(args?.width !== undefined ? { width: Number(args.width) } : {}),
           ...(args?.height !== undefined ? { height: Number(args.height) } : {}),
+          ...(args?.supersample !== undefined ? { supersample: Number(args.supersample) } : {}),
+          ...(args?.motionBlur === true ? { motionBlur: true } : {}),
         });
         return { ok: true, problems: [], ...result, out: relative(projectPath, result.out) };
       } catch (error) {
@@ -6284,6 +6530,7 @@ const SCENE_OUTPUT_SCHEMA = {
     duration: { type: 'number' },
     move: { type: 'string' },
     palette: { type: 'string' },
+    caption: { type: 'string' },
     snippet: { type: 'string' },
     problems: { type: 'array', items: { type: 'string' } },
   },
@@ -6309,7 +6556,8 @@ function buildSceneTool(ctx) {
       'Write a code-native 3D scene shot: panels in space, a camera that moves through them, a rotating light, dust and type — drawn entirely by the page, no picture required. ' +
       'This is the engine\'s geometry primitive: a picture, when given, is only a texture on a panel. ' +
       'Covers product/keynote/explainer openings where the market uses 3D motion design, but deterministic and without a video model. ' +
-      'CSS 3D is used because it is software-rasterised everywhere (no WebGL context to lose).',
+      'CSS 3D is used because it is software-rasterised everywhere (no WebGL context to lose). ' +
+      'Pass `caption` (and `kicker` / `captionSub` / `frameNo`) as well: panels floating in an empty frame read as a tech demo, the same panels behind a caption and a hairline read as a shot of a film.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6336,6 +6584,12 @@ function buildSceneTool(ctx) {
         },
         move: { type: 'string', description: `Camera move: ${Object.keys(SCENE_MOVES).join(', ')}. Default dolly-through.` },
         palette: { type: 'string', description: `Colour script: ${Object.keys(SCENE_PALETTES).join(', ')}. Default amber.` },
+        kicker: { type: 'string', description: 'Small uppercase label at the top left (max 48 chars).' },
+        caption: { type: 'string', description: 'Headline at the lower left (max 60 chars). Without furniture the panels float in a void and read as a tech demo; with it they read as a shot.' },
+        captionSub: { type: 'string', description: 'One supporting line under the caption (max 90 chars).' },
+        frameNo: { type: 'string', description: 'Small frame number at the lower right, e.g. "03 / 06".' },
+        inset: { type: 'number', description: 'px kept clear at the top and bottom for letterbox bars (default 0).' },
+        panelTone: { type: 'string', enum: ['light', 'dark'], description: 'light (default) draws light cards on a dark room; dark draws dark cards.' },
         duration: { type: 'number', description: 'Seconds (default 5).' },
         particles: { type: 'number', description: 'Dust count 0..2000 (default 90).' },
         light: { type: 'number', description: 'Light intensity 0..1 (default 0.55).' },
@@ -6366,6 +6620,12 @@ function buildSceneTool(ctx) {
         })) : [],
         ...(typeof args?.move === 'string' && args.move ? { move: args.move } : {}),
         ...(typeof args?.palette === 'string' && args.palette ? { palette: args.palette } : {}),
+        ...(typeof args?.kicker === 'string' && args.kicker ? { kicker: args.kicker } : {}),
+        ...(typeof args?.caption === 'string' && args.caption ? { caption: args.caption } : {}),
+        ...(typeof args?.captionSub === 'string' && args.captionSub ? { captionSub: args.captionSub } : {}),
+        ...(typeof args?.frameNo === 'string' && args.frameNo ? { frameNo: args.frameNo } : {}),
+        ...(typeof args?.panelTone === 'string' && args.panelTone ? { panelTone: args.panelTone } : {}),
+        ...(args?.inset !== undefined ? { inset: Number(args.inset) } : {}),
         ...(args?.duration !== undefined ? { duration: Number(args.duration) } : {}),
         ...(args?.particles !== undefined ? { particles: Number(args.particles) } : {}),
         ...(args?.light !== undefined ? { light: Number(args.light) } : {}),
@@ -6386,6 +6646,7 @@ function buildSceneTool(ctx) {
         duration: Number(spec.duration ?? 5),
         move: spec.move ?? 'dolly-through',
         palette: spec.palette ?? 'amber',
+        caption: spec.caption ?? '',
         snippet: `<iframe src="${relative}#t=0,${Number(spec.duration ?? 5)}"></iframe>`,
       };
     },
@@ -7521,6 +7782,70 @@ const MANUAL_ADDITIONS = [
   'Everything there is a pure function of t - easings, a seeded random (do not reach for Math.random), a typewriter, counters, and fadeEnv, which matches the clip\'s own fade so page contents can fade in sympathy with the film\'s fade on their clip.',
   'mise_check verifies a page\'s import resolves.',
   '',
+  '## Placing type and holding a shot (harness additions)',
+  '',
+  'A title page is more than a headline. mise_type takes `layout` (center, editorial, right, lower, corner), `motif` (horizon, orbit, speed, lattice, none), a `role` per line (eyebrow, main, sub, note), `inset` and `warmth` (-1..1). Use them:',
+  '',
+  '- Vary the layout across a film. Four title shots parked in the same place are read as a template by the third one; play each of editorial / right / lower / corner once before repeating one.',
+  '- `role` is the hierarchy and `size` is the exception. An eyebrow is small and spaced, a main line is the heaviest thing on screen, sub is quieter, a note is a whisper with a rule above it.',
+  '- `warmth` is the shot\'s own white point. Left out, it drifts from the shot index; set it when a shot should be deliberately cool or warm, and keep it inside about -0.5..0.5 so the shots still belong to one world.',
+  '- `inset` is the px a letterboxed delivery eats at top and bottom. Pass it or the type ships clipped.',
+  '',
+  'A scene page has furniture too: `caption`, `kicker`, `captionSub`, `frameNo`. Panels floating in an empty frame read as a tech demo; the same panels behind a caption and a hairline read as a shot of a film.',
+  '',
+  '## The page-side floor: mise-kit.mjs (harness additions)',
+  '',
+  'Every project gets two files beside it: `of-motion.mjs` (the motion maths) and `mise-kit.mjs` (the floor a hand-written shot stands on). A page imports what it needs:',
+  '',
+  '    import { defineShot, stage, typeScale, grid, inkOn, contrast, reveal, camera, grain, drawOn, beats } from \'./mise-kit.mjs\';',
+  '',
+  '    const type = typeScale({ base: 26, width: stage().width });   // a real scale, in px',
+  '    const g = grid({ width: stage().width });                     // margins, gutters, columns as numbers',
+  '    const ink = inkOn(card, { light: \'#f6f1e7\', dark: \'#111014\' }); // the readable of two, 4.5:1',
+  '',
+  '    defineShot((t) => {',
+  '      reveal(title, t, { at: 0.2, kind: \'mask\' });',
+  '      camera(world, t, { move: \'push-in\', amount: 0.06 });',
+  '      grain(dust, t);',
+  '    }, { duration: 4 });',
+  '',
+  'It picks no colour, no layout and no mood for you: it gives you the vocabulary — grid, type scale, WCAG contrast (measure it instead of hoping), reveal kinds (rise/fade/mask/wipe/blur/scale), camera moves in fractions of the frame, per-frame grain, drawn SVG lines, a beat grid for cuts, and `defineShot` which publishes the contract. Read that file before inventing a helper of your own.',
+  '',
+  '## Probe before you render (harness additions)',
+  '',
+  'mise_probe draws one page at several times in the renderer\'s own headless browser and measures it, without rendering: whether frame(t) is really the same picture every time (it draws the same t twice and compares the pixels), the contrast of every line of type against what is actually behind it, type too small to read, elements that leave the frame, images that failed, and whether the shot moves at all.',
+  '',
+  'It also audits against standards, not taste — each finding names the number and whose number it is: title safe 90% (EBU R95 / SMPTE ST 2046-1), 4.5:1 body and 3:1 large text (WCAG 1.4.3), 40 CJK / 80 Latin characters a line and leading >= 1.15 (WCAG 1.4.8), 20 characters a second for text that stays up for the whole shot (Netflix Timed Text), clipped whites under 2% of the frame, and `frame(t)` reproducibility. Break any of them on purpose if the shot earns it; the audit exists so that breaking one is a decision someone made.',
+  '',
+  '',
+  'It also describes the frame instead of judging it: the colours that cover it (hex and share), its tonal range, its chroma and warmth, where the weight sits, how much edge detail there is, and which row the horizon falls on. Pass `reference: "board.png"` and it reports the distance between your frame and that picture in palette, tone, contrast, chroma and warmth — so "make it look like this" becomes five numbers instead of an adjective.',
+  '',
+  '',
+  'It measures motion too, from the frames it already draws: `coverage` (a pan moves almost every cell, a subject moves a few), a global shift in px with a confidence, and a speed curve whose trend says whether the move eases or runs at one speed. `even` is a progress bar; `decelerating` is an arrival. `kind` reports what the change looks like — pan, global (a push, a dissolve, a lighting change) or subject — not what caused it, because three of those are indistinguishable from pixels alone and the author knows which one they wrote.',
+  '',
+  'And it measures depth cues: mean and peak local detail, how much of the frame is flat, and `radialSlope` — negative means a sharp middle with softer edges (a focal plane), near zero means even detail (a graphic). Both are legitimate; the number says which one the frame is.',
+  '',
+  'mise_verify does the same across the whole film: the film\'s own median tone and palette become the reference, each shot is measured against the company it keeps, and the shots that leave the look are named. No palette is imposed, so a night sea and a white product page are both measured honestly — the question it answers is "is this shot different", not "is this shot good".',
+  '',
+  'The loop is: write the page → mise_probe → fix what it names → mise_probe again → then mise_verify and render. A probe costs seconds; a render costs minutes and hides its mistakes in a file nobody watches twice. A page that fails the purity check will not render the same twice — fix it before it is cut into the film.',
+  '',
+  '## The score, and what "good" means for it (harness additions)',
+  '',
+  'A cue is judged twice: by ear, and by numbers the industry already fixed. mise_score now reports both, and masters the file to match.',
+  '',
+  '- Loudness. A music stem is mastered to about -18 LUFS with the true peak under -1 dBTP, because the film mix is normalised later, at deliver, to the destination target: EBU R 128 -23 LUFS, ATSC A/85 -24 LKFS, streaming -14. Pulling a stem straight to -14 spends all of its dynamics to get there, and a sparse bed has no dynamics to spare.',
+  '- Cuts on the grid. The receipt gives the mean and worst distance from a cut to the score\'s own beat grid, in ms. Past about 60 ms the ear hears the cut as late rather than as an accent.',
+  '- Tempo against the cutting. `beats per shot` should sit between about two and sixteen. Below it the bed is slower than the eye; above it the music is busier than the edit.',
+  '- Harmony that moves. The share of bars that change chord; a low number is a loop with a pulse.',
+  '- Room to return. A bed that never drops has nowhere to come back from. One silent beat before the last shot costs nothing and reads as production value.',
+  '',
+  'When the film has a voice: the bed sits 12-18 dB under it (18-25 for a documentary), a broad 2-4 dB dip around 2 kHz opens the consonant band without thinning the music, and ducking should be 3-6 dB with a 300-600 ms release. More than that and the music was simply too loud or too busy. mise_mix does the duck; these are the numbers to check it against.',
+  '',
+  '## Render quality (harness additions)',
+  '',
+  'mise_render rasterises at 2x and scales down by default: hairline rules, small type and thin grid lines are drawn above the pixel boundary and come down clean. `supersample: 1` is faster and softer; `motionBlur: true` averages two samples per frame into a real shutter (right for a fast camera move, doubles render time, softens hard cuts).',
+  'mise_run ["render"] reads `--fps n`, `--ss n`, `--4k`, `--blur` and `--out file`; the default is 1080p at 30 fps, sampled at 2x.',
+  '',
   '## Choose the motion, do not default to a caption (harness additions, after FredTalk 2.1)',
   '',
   'A film made by improvising gets three moves and a big caption. Before writing a shot page, call mise_motion once per shot with what the shot has to say, and name the pattern in the page (a comment is enough):',
@@ -7623,6 +7948,7 @@ export function apply(ctx) {
       ctx.tools?.register(buildGradeTool(ctx)),
       ctx.tools?.register(buildPlanTool(ctx)),
       ctx.tools?.register(buildVerifyTool(ctx)),
+      ctx.tools?.register(buildProbeTool(ctx)),
       ctx.tools?.register(buildSignoffTool(ctx)),
       ctx.tools?.register(buildDemoTool(ctx)),
       ctx.tools?.register(buildDeliverTool(ctx)),

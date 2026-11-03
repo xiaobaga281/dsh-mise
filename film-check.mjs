@@ -74,10 +74,14 @@ function splitSrc(src) {
 /** Kind of a clip, as upstream classifies it by its file. */
 function kindOfSrc(src) {
   if (typeof src !== 'string') return 'unknown';
-  if (src.endsWith('.html')) return 'page';
-  if (/\.(mp4|webm|mov|m4v)$/i.test(src)) return 'video';
-  if (/\.(png|jpe?g|webp|gif|svg|avif)$/i.test(src)) return 'still';
-  if (/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(src)) return 'sound';
+  // A clip is written `page.html#t=0,4`: the fragment is a time window, not part
+  // of the file name. Testing the raw src made every timed clip "unknown", which
+  // silently skipped the page-contract check on exactly the clips that carry it.
+  const clean = src.split('#')[0].split('?')[0];
+  if (clean.endsWith('.html')) return 'page';
+  if (/\.(mp4|webm|mov|m4v)$/i.test(clean)) return 'video';
+  if (/\.(png|jpe?g|webp|gif|svg|avif)$/i.test(clean)) return 'still';
+  if (/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(clean)) return 'sound';
   return 'unknown';
 }
 

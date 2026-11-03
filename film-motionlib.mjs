@@ -147,6 +147,52 @@ export function interpolate(value, input, output, options = {}) {
 }
 
 /**
+ * Film grain, as source a page can inline.
+ *
+ * A tiled dot pattern slid in eight 24 Hz steps does not read as grain: it
+ * crawls across the picture like dirt on the lens, and it is the same dirt in
+ * every shot. Real grain is a different field every frame.
+ *
+ * Twelve 96px noise tiles are drawn once at load, then picked by a hash of the
+ * frame index. The sequence looks random, is identical on every machine, and
+ * costs one style write per frame. The tile is small on purpose: at a 2x
+ * supersampled render it is averaged down by the scaler, which is exactly the
+ * softening film grain has.
+ */
+export function grainRuntime() {
+  return `
+const GRAIN_TILES = (() => {
+  const size = 96;
+  const tiles = [];
+  for (let n = 0; n < 12; n += 1) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const g = canvas.getContext('2d');
+    const img = g.createImageData(size, size);
+    let seed = (1013 + n * 7919) >>> 0;
+    for (let i = 0; i < img.data.length; i += 4) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      const v = (seed >>> 24) & 255;
+      img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    tiles.push('url(' + canvas.toDataURL('image/png') + ')');
+  }
+  return tiles;
+})();
+const setGrain = (el, t, rate) => {
+  if (!el) return;
+  const fps = Number(rate) > 0 ? Number(rate) : 24;
+  const frame = Math.floor(t * fps);
+  const pick = (frame * 7 + 3) % GRAIN_TILES.length;
+  el.style.backgroundImage = GRAIN_TILES[pick];
+  el.style.backgroundSize = '96px 96px';
+  el.style.backgroundPosition = (frame % 96) + 'px ' + ((frame * 13) % 96) + 'px';
+};`;
+}
+
+/**
  * The page-side runtime: the same helpers, as source a page can inline.
  *
  * The functions are serialised from this module rather than re-typed, so a page

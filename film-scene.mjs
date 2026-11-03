@@ -1,5 +1,6 @@
 import { fontStack } from './film-fonts.mjs';
 import { shotWarmth } from './film-craft.mjs';
+import { grainRuntime } from './film-motionlib.mjs';
 /**
  * A code-native 3D scene shot: panels in space, a camera that moves through
  * them, light, dust and type. No picture required.
@@ -56,6 +57,17 @@ export function validateSceneSpec(spec = {}, env = {}) {
   if (spec.particles !== undefined && (!Number.isFinite(spec.particles) || spec.particles < 0 || spec.particles > 2000)) problems.push('particles must be 0..2000');
   for (const key of ['light', 'grain']) {
     if (spec?.[key] !== undefined && (!Number.isFinite(spec[key]) || spec[key] < 0 || spec[key] > 1)) problems.push(`${key} must be 0..1`);
+  }
+  // The editorial furniture is what turns panels floating in a void into a shot
+  // of a film; it is checked here so a caller cannot pass a paragraph where a
+  // caption belongs.
+  if (spec.inset !== undefined && (!Number.isFinite(Number(spec.inset)) || Number(spec.inset) < 0 || Number(spec.inset) > 400)) problems.push('inset must be 0..400 (px kept clear for letterbox bars)');
+  if (spec.panelTone !== undefined && !['light', 'dark'].includes(spec.panelTone)) problems.push('panelTone must be "light" or "dark"');
+  for (const [key, limit] of [['kicker', 48], ['caption', 60], ['captionSub', 90], ['frameNo', 24]]) {
+    if (spec[key] !== undefined) {
+      if (typeof spec[key] !== 'string') problems.push(`${key} must be a string`);
+      else if (spec[key].length > limit) problems.push(`${key} is too long (max ${limit} characters)`);
+    }
   }
   return { ok: problems.length === 0, problems, panels };
 }
@@ -235,6 +247,8 @@ function drawDust(t) {
   dctx.globalAlpha = 1;
 }
 
+${grainRuntime()}
+
 window.film = {
   duration: D,
   frame(t) {
@@ -264,8 +278,7 @@ window.film = {
     if (framenoEl) framenoEl.style.opacity = (0.28 + 0.16 * p).toFixed(3);
     dust.style.transform = 'translate3d(0,' + (-26 * p).toFixed(2) + 'px,0) scale(' + (1 + 0.02 * p).toFixed(4) + ')';
 
-    const step = Math.floor(t * 24) % 8;
-    grainEl.style.backgroundPosition = step + 'px ' + ((step * 3) % 8) + 'px, ' + (1 - step) + 'px 2px';
+    setGrain(grainEl, t, 30);
   },
 };
 </script>

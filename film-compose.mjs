@@ -24,7 +24,8 @@ import { inflateSync } from 'node:zlib';
  * @param {Buffer} buffer
  * @returns {{ ok: boolean, width?: number, height?: number, gray?: Uint8Array, problems: string[] }}
  */
-export function decodePng(buffer) {
+export function decodePng(buffer, options = {}) {
+  const wantColor = options.color === true;
   const problems = [];
   if (!Buffer.isBuffer(buffer) || buffer.length < 8) return { ok: false, problems: ['not a PNG buffer'] };
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
@@ -76,6 +77,7 @@ export function decodePng(buffer) {
 
   const stride = width * channels;
   const out = new Uint8Array(width * height);
+  const rgb = wantColor ? new Uint8Array(width * height * 3) : null;
   const previous = new Uint8Array(stride);
   const line = new Uint8Array(stride);
   let pointer = 0;
@@ -107,19 +109,35 @@ export function decodePng(buffer) {
     for (let x = 0; x < width; x += 1) {
       const at = x * channels;
       let value;
+      let r = 0;
+      let g = 0;
+      let b = 0;
       if (channels === 1) {
-        value = palette ? palette[line[at] * 3] : line[at];
+        if (palette) {
+          const index = line[at] * 3;
+          r = palette[index]; g = palette[index + 1]; b = palette[index + 2];
+          value = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        } else {
+          r = g = b = line[at];
+          value = line[at];
+        }
       } else if (channels === 2) {
+        r = g = b = line[at];
         value = line[at];
       } else {
-        value = Math.round(0.299 * line[at] + 0.587 * line[at + 1] + 0.114 * line[at + 2]);
+        r = line[at]; g = line[at + 1]; b = line[at + 2];
+        value = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
       }
       out[y * width + x] = value;
+      if (wantColor) {
+        const to = (y * width + x) * 3;
+        rgb[to] = r; rgb[to + 1] = g; rgb[to + 2] = b;
+      }
     }
     previous.set(line);
   }
 
-  return { ok: true, width, height, gray: out, problems: [] };
+  return { ok: true, width, height, gray: out, ...(wantColor ? { rgb } : {}), problems: [] };
 }
 
 /**

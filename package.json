@@ -1,6 +1,6 @@
 {
   "name": "dsh-mise",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "description": "Mise: a film is a mise-en-scene. Films are HTML pages; this plugin composes, scores, checks, looks at and renders them with its own renderer and its own Apple-style sidebar panel.",
   "exports": {
@@ -10,9 +10,6 @@
     "./icon": "./icon.svg"
   },
   "files": [
-    "LICENSE",
-    "NOTICE.md",
-    "README.md",
     "agnes-assets.mjs",
     "asset-queue.mjs",
     "client.js",
@@ -37,10 +34,13 @@
     "film-keyframes.mjs",
     "film-mix.mjs",
     "film-motion-catalog.mjs",
+    "film-motion.mjs",
     "film-motionlib.mjs",
     "film-new.mjs",
     "film-packs.mjs",
     "film-preflight.mjs",
+    "film-probe.mjs",
+    "film-promo.mjs",
     "film-review.mjs",
     "film-scene.mjs",
     "film-score.mjs",
@@ -50,8 +50,10 @@
     "film-transition.mjs",
     "film-type.mjs",
     "film-verify.mjs",
+    "film-vision.mjs",
     "icon.svg",
     "index.js",
+    "LICENSE",
     "locale/*.json",
     "media-service.mjs",
     "mise-film-doc.mjs",
@@ -59,6 +61,9 @@
     "mise-render.mjs",
     "mise-storyboard-add.mjs",
     "mise-tools.mjs",
+    "NOTICE.md",
+    "README.md",
+    "scripts/*.mjs",
     "skills/**",
     "tests/*.test.mjs",
     "vendor/motion/**",
@@ -83,10 +88,10 @@
   },
   "displayName": "Mise",
   "license": "MIT",
-  "homepage": "https://github.com/",
+  "homepage": "https://github.com/xiaobaga281/dsh-mise#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/"
+    "url": "git+https://github.com/xiaobaga281/dsh-mise.git"
   },
   "keywords": [
     "dsh",
@@ -97,5 +102,12 @@
     "playwright",
     "motion-graphics"
   ],
-  "author": "Mise contributors"
+  "author": "Mise contributors",
+  "icon": "./icon.svg",
+  "engines": {
+    "node": ">=20"
+  },
+  "bugs": {
+    "url": "https://github.com/xiaobaga281/dsh-mise/issues"
+  }
 }

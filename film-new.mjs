@@ -71,11 +71,17 @@ export async function newFilm(spec) {
   // stage because it centers itself.
   writeIfNew(shotPath, shotPage(title), created);
 
-  // The motion kit, from the plugin's own vendor directory.
+  // The motion kit and the page-side floor, from the plugin's own vendor
+  // directory. A page imports both with a relative path.
   const kitSource = join(PLUGIN_ROOT, 'vendor', 'motion', 'of-motion.mjs');
   if (existsSync(kitSource)) {
     copyFileSync(kitSource, motionPath);
     created.push('of-motion.mjs');
+  }
+  const floorSource = join(PLUGIN_ROOT, 'vendor', 'motion', 'mise-kit.mjs');
+  if (existsSync(floorSource)) {
+    copyFileSync(floorSource, join(projectPath, 'mise-kit.mjs'));
+    created.push('mise-kit.mjs');
   }
 
   return { ok: true, created, existed, filmPath };
@@ -101,6 +107,11 @@ function shotPage(title) {
 <html>
 <head>
 <meta charset="utf-8">
+<!-- Deliberately the smallest page that draws, and nothing more: no layout
+     system, no palette, no motion library. Before the second shot, read
+     ./mise-kit.mjs — grid(), typeScale(), inkOn()/contrast(), reveal(),
+     camera(), grain(), drawOn(), beats(), defineShot() — and write the shot
+     with it instead of re-inventing those six things badly. -->
 <style>
 /* The film host freezes CSS animations at t before a frame is drawn, so these
    keyframes are a deterministic function of t: no frame() loop needed. */

@@ -57,12 +57,13 @@ node tests/install-check.mjs      # 工具数 / 路由 / overlay 补丁可读
 | `mise_plan` | 按类型配方出计划（镜头、节奏、配乐网格、调色） |
 | `mise_compose` | **先量截图留白再定构图**（解码 PNG → 墨量网格 → 版位 / 遮罩 / 曝光） |
 | `mise_promo` / `mise_promo_plan` | 产品宣传片语言与提案（读 README + facts.json） |
-| `mise_render` | 渲染 MP4（自研，无 Studio） |
+| `mise_render` | 渲染 MP4（自研，无 Studio）：默认 2× 超采样后降采样，可选 `motionBlur` 快门 |
 | `mise_look` / `mise_thumbs` | 联系表 + 响度 / 分镜缩略图 |
-| `mise_check` / `mise_verify` / `mise_review` | 结构校验 / 像素验收 / 逐镜批准 |
+| `mise_check` / `mise_verify` / `mise_review` | 结构校验 / 像素验收（含整片外观：调色板、影调、色度、异常镜头）/ 逐镜批准 |
+| `mise_probe` | 单页体检：纯函数性（同 t 是否同帧）、对比度、溢出、字号、运动（平移/全局/主体 + 速度曲线）、细节分层；并按成文规范断言：标题安全区 90%（EBU R95）、4.5:1 / 3:1（WCAG 1.4.3）、单行 40 字（WCAG 1.4.8）、20 字/秒（Netflix TTSG） |
 | `mise_deliver` / `mise_signoff` | 交付（门禁、调色、响度、回执）/ 人工签收 |
-| `mise_score` / `mise_mix` / `mise_voice` | 配乐 / 混音闪避 / 配音 |
-| `mise_type` / `mise_graphics` / `mise_scene` / `mise_cine` | 排版页 / 图表页 / 场景页 / 摄影感页面 |
+| `mise_score` / `mise_mix` / `mise_voice` | 配乐（母带 −18 LUFS / TP −1 dBTP，附切点对齐、速度与和声检查）/ 混音闪避 / 配音 |
+| `mise_type` / `mise_graphics` / `mise_scene` / `mise_cine` | 排版页（可指定版式 / 母题 / 角色 / 色温）/ 图表页 / 场景页（可带字幕家具）/ 摄影感页面 |
 | `mise_duo` / `mise_transition` | 呈现式转场 / 覆盖式转场 |
 | `mise_depth` / `mise_interpolate` / `mise_pack` | 景深 / 插帧 / 可选增强包（SHA-256 校验） |
 | `mise_run` / `mise_manual` | 命令入口（open / look / render / skills / skill / manual）/ 手册 |
@@ -88,6 +89,10 @@ plugin/
 ├── mise-film-doc.mjs      film.html 解析与写回
 ├── film-*.mjs             能力模块（排版、图表、场景、配乐、混音、构图、校验、交付…）
 ├── skills/                11 个风格文档 + MANUAL（随插件分发）
+├── vendor/motion/         of-motion.mjs（动效数学）+ mise-kit.mjs（页面侧基础能力：栅格 / 字阶 / 对比度 / 揭露 / 运镜 / 颗粒 / defineShot）
+├── film-probe.mjs         单页体检（纯函数性 / 对比度 / 溢出 / 字号 / 运动 / 规范审计）
+├── film-vision.mjs        画面描述（调色板 / 影调 / 色度 / 构图 / 地平线 / 细节分层），可对照参考图与整片自比
+├── film-motion.mjs        运动测量（变化覆盖率 / 全局位移 / 速度曲线与缓动趋势）
 ├── locale/                en / zh 面板文案
 ├── scripts/sync.mjs       源码 → 安装目录完整镜像（哈希校验）
 └── tests/                 全部套件（node 单文件可跑）
@@ -102,6 +107,7 @@ plugin/
 ## 测试
 
 ```powershell
+node scripts/run-tests.mjs        # 全部套件，逐文件报告
 node tests/promo.test.mjs
 node tests/promo-structure.test.mjs
 node tests/compose.test.mjs

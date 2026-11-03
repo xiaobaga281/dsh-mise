@@ -16,6 +16,7 @@
 import { TYPE_PALETTES } from './film-type.mjs';
 import { fontStack } from './film-fonts.mjs';
 import { shotWarmth } from './film-craft.mjs';
+import { grainRuntime } from './film-motionlib.mjs';
 
 export const GRAPHICS_MODES = ['chart', 'particles', 'pulse'];
 
@@ -316,14 +317,15 @@ function drawPulse(t) {
   ctx.globalAlpha = 1;
 }
 
+${grainRuntime()}
+
 window.film = {
   duration: D,
   frame(t) {
     if (MODE === 'chart') drawChart(t);
     else if (MODE === 'particles') drawParticles(t);
     else drawPulse(t);
-    const step = Math.floor(t * 24) % 8;
-    grainEl.style.backgroundPosition = step + 'px ' + ((step * 3) % 8) + 'px, ' + (1 - step) + 'px 2px';
+    setGrain(grainEl, t, 30);
   },
 };
 </script>

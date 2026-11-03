@@ -5,10 +5,14 @@
 
 # Build artifacts of a film project, never part of the plugin
 .film/
+.films/
 deliveries/
 *.mp4
 *.wav
 *.mov
+
+# Editor/agent scratch for this checkout, not plugin content
+.workbuddy/
 
 # Local caches and logs
 .panel-preview.html

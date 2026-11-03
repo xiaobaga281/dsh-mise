@@ -46,7 +46,7 @@ const problems = [];
 if (tools.length < 20) problems.push(`only ${tools.length} tools registered`);
 if (!routes.includes('/mise/status')) problems.push('no /mise/status route');
 if (!routes.includes('/mise/storyboard')) problems.push('no /mise/storyboard route (the panel cannot edit shots)');
-for (const name of ['mise_demo', 'mise_verify', 'mise_deliver', 'mise_start']) {
+for (const name of ['mise_demo', 'mise_verify', 'mise_probe', 'mise_deliver', 'mise_start']) {
   if (!tools.includes(name)) problems.push(`${name} is missing`);
 }
 

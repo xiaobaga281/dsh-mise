@@ -10,12 +10,31 @@
  */
 
 import { gridCss } from './film-grid.mjs';
-import { motionRuntime } from './film-motionlib.mjs';
+import { grainRuntime, motionRuntime } from './film-motionlib.mjs';
 import { entranceSeconds, staggerStep } from './film-craft.mjs';
 import { fontStack } from './film-fonts.mjs';
 import { shotWarmth } from './film-craft.mjs';
 
 export const TYPE_MOTIONS = ['mask-rise', 'tracking-in', 'per-word', 'blur-in'];
+
+/**
+ * Where the block of type sits in the frame.
+ *
+ * These are the difference between a sequence of cards and a film: four title
+ * shots that all put the same block on the left are read as a template by the
+ * third one. The builders have always had them; the tool surface did not, which
+ * is why every generated title was centred.
+ */
+export const TYPE_LAYOUTS = ['center', 'editorial', 'right', 'lower', 'corner'];
+
+/** The abstract geometry drawn on the open side of the frame. */
+export const TYPE_MOTIFS = ['horizon', 'orbit', 'speed', 'lattice', 'none'];
+
+/** The role each line plays in the hierarchy; size follows from the role. */
+export const TYPE_ROLES = ['eyebrow', 'main', 'sub', 'note'];
+
+/** Frame shapes the grid knows how to lay out. */
+export const TYPE_ASPECTS = ['16:9', '9:16', '1:1', '4:5'];
 
 export const TYPE_PALETTES = {
   amber: { bg: '#0b0906', ink: '#f7f0e4', accent: '#f0a64b' },
@@ -39,6 +58,14 @@ export function validateTypeSpec(spec = {}, env = {}) {
   });
   if (spec.motion !== undefined && !TYPE_MOTIONS.includes(spec.motion)) problems.push(`unknown motion ${JSON.stringify(spec.motion)}; there is ${TYPE_MOTIONS.join(', ')}`);
   if (spec.palette !== undefined && !TYPE_PALETTES[spec.palette]) problems.push(`unknown palette ${JSON.stringify(spec.palette)}`);
+  if (spec.layout !== undefined && !TYPE_LAYOUTS.includes(spec.layout)) problems.push(`unknown layout ${JSON.stringify(spec.layout)}; there is ${TYPE_LAYOUTS.join(', ')}`);
+  if (spec.motif !== undefined && !TYPE_MOTIFS.includes(spec.motif)) problems.push(`unknown motif ${JSON.stringify(spec.motif)}; there is ${TYPE_MOTIFS.join(', ')}`);
+  if (spec.aspect !== undefined && !TYPE_ASPECTS.includes(spec.aspect)) problems.push(`unknown aspect ${JSON.stringify(spec.aspect)}; there is ${TYPE_ASPECTS.join(', ')}`);
+  if (spec.inset !== undefined && (!Number.isFinite(Number(spec.inset)) || Number(spec.inset) < 0 || Number(spec.inset) > 400)) problems.push('inset must be 0..400 (px kept clear for letterbox bars)');
+  if (spec.warmth !== undefined && (!Number.isFinite(Number(spec.warmth)) || Number(spec.warmth) < -1 || Number(spec.warmth) > 1)) problems.push('warmth must be -1..1');
+  lines.forEach((line, index) => {
+    if (line?.role !== undefined && !TYPE_ROLES.includes(line.role)) problems.push(`line ${index + 1}: unknown role ${JSON.stringify(line.role)}; there is ${TYPE_ROLES.join(', ')}`);
+  });
   const duration = Number(spec.duration ?? 4);
   if (!Number.isFinite(duration) || duration <= 0 || duration > 120) problems.push('duration must be 0..120 seconds');
   if (spec.stagger !== undefined && (!Number.isFinite(spec.stagger) || spec.stagger < 0 || spec.stagger > 0.5)) problems.push('stagger must be 0..0.5 seconds per unit');
@@ -63,12 +90,11 @@ export function buildTypePage(spec = {}) {
   const warmth = Number.isFinite(Number(spec.warmth)) ? Number(spec.warmth) : shotWarmth(Number(spec.shotIndex ?? 0));
   const sweep = spec.sweep ?? 0.6;
   const align = spec.align === 'left' ? 'flex-start' : 'center';
-  const LAYOUTS = ['center', 'editorial', 'right', 'lower', 'corner'];
-  const layout = LAYOUTS.includes(spec.layout) ? spec.layout : 'center';
+  const layout = TYPE_LAYOUTS.includes(spec.layout) ? spec.layout : 'center';
   const inset = Math.max(0, Number(spec.inset ?? 0));
   // Which abstract motif sits on the open side of the frame. Deterministic for
   // a given page: the same film renders identically on every machine.
-  const motif = ['horizon', 'orbit', 'speed', 'lattice', 'none'].includes(spec.motif)
+  const motif = TYPE_MOTIFS.includes(spec.motif)
     ? spec.motif
     : (layout === 'editorial' ? 'horizon' : 'orbit');
   const specimen = (() => {
@@ -143,7 +169,7 @@ ${gridCss(spec.aspect ?? '16:9')}
      look of a placeholder; this is the look of a page. */
   .stage.editorial { align-items: flex-start; text-align: left;
     padding-left: calc(var(--margin) + var(--col) + var(--gutter)); }
-  .stage.editorial .line { max-width: calc(var(--col) * 8 + var(--gutter) * 7); }
+  .stage.editorial .line { max-width: calc(var(--col) * 9 + var(--gutter) * 8); }
   .stage.editorial .kicker { letter-spacing: 0.34em; opacity: 0.72; color: ${palette.accent}; }
   /* Layout variants. Four title shots in a row cannot all be the same block on
      the left: the eye stops reading variation and starts reading a template.
@@ -151,7 +177,7 @@ ${gridCss(spec.aspect ?? '16:9')}
      frame, which is how a sequence of cards stays alive. */
   .stage.right { align-items: flex-end; text-align: right;
     padding-right: calc(var(--margin) + var(--col) + var(--gutter)); }
-  .stage.right .line { max-width: calc(var(--col) * 8 + var(--gutter) * 7); }
+  .stage.right .line { max-width: calc(var(--col) * 9 + var(--gutter) * 8); }
   .stage.right .bar { margin-left: auto; }
   .stage.lower { justify-content: flex-end; align-items: flex-start; text-align: left;
     padding: 0 var(--margin) calc(var(--safe) + var(--body) * 2.2 + var(--inset, 0px)) calc(var(--margin) + var(--col) + var(--gutter)); }
@@ -241,6 +267,7 @@ const sigParts = sigEl ? [...sigEl.querySelectorAll('path, circle, line')] : [];
 const sigLengths = sigParts.map((part) => { try { return part.getTotalLength(); } catch { return 0; } });
 
 ${motionRuntime()}
+${grainRuntime()}
 const easeOut = EASE.outCubic;
 
 window.film = {
@@ -292,8 +319,7 @@ window.film = {
     stageEl.style.transform = 'translateY(' + driftY + 'px) scale(' + driftScale + ')';
     stageEl.style.transformOrigin = '50% 55%';
 
-    const step = Math.floor(t * 24) % 8;
-    grainEl.style.backgroundPosition = step + 'px ' + ((step * 3) % 8) + 'px, ' + (1 - step) + 'px 2px';
+    setGrain(grainEl, t, 30);
 
     // The signature draws itself in and then drifts very slowly: it is scenery,
     // not animation, so it is allowed to arrive after the words do.
